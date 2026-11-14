@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.abdullah.mybrowser"
+    namespace = "com.vortex.browser"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.abdullah.mybrowser"
+        applicationId = "com.vortex.browser"
         minSdk = 26
         targetSdk = 34
         versionCode = 1
