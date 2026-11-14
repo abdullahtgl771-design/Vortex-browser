@@ -430,7 +430,7 @@ class MainActivity : Activity() {
         else finish()
     }
 
-            @Deprecated("Deprecated in Java")
+    @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == 77 && resultCode == RESULT_OK) {
@@ -446,7 +446,8 @@ class MainActivity : Activity() {
             }
         }
     }
-        private fun hasPerm(p: String) = checkSelfPermission(p) == PackageManager.PERMISSION_GRANTED
+
+    private fun hasPerm(p: String) = checkSelfPermission(p) == PackageManager.PERMISSION_GRANTED
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
@@ -555,7 +556,7 @@ class MainActivity : Activity() {
         intArrayOf(Color.parseColor("#150B33"), Color.parseColor("#07070C"), Color.parseColor("#0E0824"))
     )
 
-    // liquid-glass style surface
+    // Removed heavy blur theme setup (`backdrop-filter`) to fix UI lag and performance issues.
     private fun glass(radius: Int, top: Int = 0x2E, bottom: Int = 0x12): GradientDrawable {
         val g = GradientDrawable(
             GradientDrawable.Orientation.TOP_BOTTOM,
@@ -1237,6 +1238,7 @@ class MainActivity : Activity() {
         w.loadDataWithBaseURL(homeUrl, homeHtml(), "text/html", "utf-8", homeUrl)
     }
 
+    // Removed backdrop-filter blur from the homepage CSS to boost rendering speed and eliminate lag.
     private fun homeHtml(): String {
         val greetDiv = if (showGreeting) "<div id=\"clock\" class=\"a2\"></div>" else ""
         return """
@@ -1248,7 +1250,7 @@ class MainActivity : Activity() {
 body{font-family:sans-serif;color:#fff;background:#07070c;min-height:100vh;overflow-x:hidden}
 .waves{position:fixed;left:0;top:0;width:100%;height:100%;z-index:0;pointer-events:none}
 .wrap{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;padding:42px 16px 40px}
-.glass{background:linear-gradient(180deg,rgba(255,255,255,.13),rgba(255,255,255,.05));border:1px solid rgba(255,255,255,.15);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 8px 24px rgba(0,0,0,.35)}
+.glass{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,.15);box-shadow:0 8px 24px rgba(0,0,0,.35)}
 @keyframes up{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
 .a1{animation:up .6s .02s both}.a2{animation:up .6s .10s both}.a3{animation:up .6s .18s both}.a4{animation:up .6s .26s both}.a5{animation:up .6s .34s both}
 .logo{font-size:30px;font-weight:500;letter-spacing:15px;padding-left:15px;color:#f1f1fa}
@@ -2107,7 +2109,9 @@ window.vxFeedErr=function(){
                 if (view !== tabs.getOrNull(cur)) return
                 progress.progress = newProgress
                 progress.visibility = if (newProgress in 1..99) View.VISIBLE else View.GONE
-                            override fun onPermissionRequest(request: PermissionRequest) {
+            }
+
+            override fun onPermissionRequest(request: PermissionRequest) {
                 runOnUiThread { handleWebPermission(request) }
             }
 
@@ -2130,7 +2134,6 @@ window.vxFeedErr=function(){
                     toast("File picker not available")
                     false
                 }
-            }
             }
         }
 
