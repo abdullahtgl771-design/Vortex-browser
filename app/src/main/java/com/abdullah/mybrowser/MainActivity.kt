@@ -430,7 +430,7 @@ class MainActivity : Activity() {
         else finish()
     }
 
-    @Deprecated("Deprecated in Java")
+            @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == 77 && resultCode == RESULT_OK) {
@@ -438,6 +438,98 @@ class MainActivity : Activity() {
             val text = list?.firstOrNull()
             if (!text.isNullOrBlank()) submitQuery(text)
         }
+        if (requestCode == 78) {
+            val cb = fileCallback
+            fileCallback = null
+            if (cb != null) {
+                cb.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data))
+            }
+        }
+    }
+        private fun hasPerm(p: String) = checkSelfPermission(p) == PackageManager.PERMISSION_GRANTED
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 91) {
+            val req = pendingPerm
+            pendingPerm = null
+            if (req != null) {
+                val allowed = ArrayList<String>()
+                for (r in req.resources) {
+                    if (r == PermissionRequest.RESOURCE_VIDEO_CAPTURE && hasPerm(Manifest.permission.CAMERA)) allowed.add(r)
+                    if (r == PermissionRequest.RESOURCE_AUDIO_CAPTURE && hasPerm(Manifest.permission.RECORD_AUDIO)) allowed.add(r)
+                }
+                if (allowed.isEmpty()) req.deny() else req.grant(allowed.toTypedArray())
+            }
+        }
+        if (requestCode == 92) {
+            val cb = pendingGeoCb
+            val origin = pendingGeoOrigin
+            pendingGeoCb = null
+            pendingGeoOrigin = null
+            if (cb != null && origin != null) {
+                val ok = hasPerm(Manifest.permission.ACCESS_FINE_LOCATION) || hasPerm(Manifest.permission.ACCESS_COARSE_LOCATION)
+                cb.invoke(origin, ok, false)
+            }
+        }
+    }
+
+    private fun grantWeb(req: PermissionRequest, cam: Boolean, mic: Boolean) {
+        val list = ArrayList<String>()
+        if (cam) list.add(PermissionRequest.RESOURCE_VIDEO_CAPTURE)
+        if (mic) list.add(PermissionRequest.RESOURCE_AUDIO_CAPTURE)
+        req.grant(list.toTypedArray())
+    }
+
+    private fun handleWebPermission(req: PermissionRequest) {
+        val needCam = req.resources.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE)
+        val needMic = req.resources.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE)
+        if (!needCam && !needMic) {
+            req.deny()
+            return
+        }
+        val what = if (needCam && needMic) "camera and microphone" else if (needCam) "camera" else "microphone"
+        val host = req.origin.host ?: "This site"
+        AlertDialog.Builder(this)
+            .setTitle("Permission request")
+            .setMessage(host + " wants to use your " + what + ".")
+            .setPositiveButton("Allow") { _, _ ->
+                val need = ArrayList<String>()
+                if (needCam && !hasPerm(Manifest.permission.CAMERA)) need.add(Manifest.permission.CAMERA)
+                if (needMic && !hasPerm(Manifest.permission.RECORD_AUDIO)) need.add(Manifest.permission.RECORD_AUDIO)
+                if (need.isEmpty()) {
+                    grantWeb(req, needCam, needMic)
+                } else {
+                    pendingPerm?.deny()
+                    pendingPerm = req
+                    requestPermissions(need.toTypedArray(), 91)
+                }
+            }
+            .setNegativeButton("Block") { _, _ -> req.deny() }
+            .setOnCancelListener { req.deny() }
+            .show()
+    }
+
+    private fun handleGeo(origin: String, cb: GeolocationPermissions.Callback) {
+        val host = hostOf(origin) ?: origin
+        AlertDialog.Builder(this)
+            .setTitle("Location request")
+            .setMessage(host + " wants to know your location.")
+            .setPositiveButton("Allow") { _, _ ->
+                if (hasPerm(Manifest.permission.ACCESS_FINE_LOCATION)) {
+                    cb.invoke(origin, true, false)
+                } else {
+                    pendingGeoCb = cb
+                    pendingGeoOrigin = origin
+                    requestPermissions(
+                        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                        92
+                    )
+                }
+            }
+            .setNegativeButton("Block") { _, _ -> cb.invoke(origin, false, false) }
+            .setOnCancelListener { cb.invoke(origin, false, false) }
+            .show()
     }
 
     // ---------- helpers ----------
