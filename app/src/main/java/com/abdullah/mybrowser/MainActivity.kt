@@ -360,6 +360,10 @@ class MainActivity : Activity() {
     @Volatile private var feedBusy = false
     private var forceFeed = false
     private var overlayGen = 0
+    private var pendingPerm: PermissionRequest? = null
+    private var pendingGeoOrigin: String? = null
+    private var pendingGeoCb: GeolocationPermissions.Callback? = null
+    private var fileCallback: ValueCallback<Array<Uri>>? = null
 
     private var adblock = true
     private var desktop = false
