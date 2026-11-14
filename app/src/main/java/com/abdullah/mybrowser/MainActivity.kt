@@ -54,6 +54,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+class DownloadItem(val name: String, val url: String, val path: String, val ms: Long)
+
 class Rule(var host: String, var css: String, var js: String, var on: Boolean)
 
 class Tool(val kind: Int, val title: String, val sub: String, val action: () -> Unit)
@@ -376,6 +378,7 @@ class MainActivity : Activity() {
     // home page greeting + clock: false kore dile hide
     private val showGreeting = true
 
+    private val downloadHist = mutableListOf<DownloadItem>()
     private val feedbackUrl = "https://www.facebook.com/share/1CSSRcHBTv/"
     private val homeUrl = "https://vortex.local/"
     private val dohUrl = "https://dns.adguard-dns.com/dns-query"
@@ -514,6 +517,237 @@ class MainActivity : Activity() {
             .show()
     }
 
+        private fun loadDownloads() {
+        try {
+            val raw = prefs.getString("dl_hist", "[]") ?: "[]"
+            val a = JSONArray(raw)
+            for (i in 0 until a.length()) {
+                val o = a.getJSONObject(i)
+                downloadHist.add(DownloadItem(o.getString("n"), o.getString("u"), o.getString("p"), o.getLong("ms")))
+            }
+        } catch (e: Exception) {}
+    }
+
+    private fun saveDownloads() {
+        val a = JSONArray()
+        for (d in downloadHist) {
+            val o = JSONObject()
+            o.put("n", d.name)
+            o.put("u", d.url)
+            o.put("p", d.path)
+            o.put("ms", d.ms)
+            a.put(o)
+        }
+        prefs.edit().putString("dl_hist", a.toString()).apply()
+    }
+        private fun showDownloadsPage() {
+        var currentFilter = 0 // 0: All, 1: Videos, 2: Audio, 3: Other
+        
+        val page = LinearLayout(this)
+        page.orientation = LinearLayout.VERTICAL
+        page.background = bgGradient()
+        page.setPadding(dp(12), dp(20), dp(12), 0)
+
+        // Top Header
+        val head = LinearLayout(this)
+        head.orientation = LinearLayout.HORIZONTAL
+        head.gravity = Gravity.CENTER_VERTICAL
+        val title = TextView(this)
+        title.text = "Downloads"
+        title.textSize = 21f
+        title.setTextColor(Color.WHITE)
+        title.setPadding(dp(6), 0, 0, 0)
+
+        val trash = IconView(this, 24)
+        trash.tint = Color.parseColor("#C4C4D4")
+        val close = IconView(this, 7)
+        close.tint = Color.parseColor("#C4C4D4")
+        close.setOnClickListener { closeOverlay() }
+
+        head.addView(title, lp(0, wc, 1f))
+        head.addView(trash, lp(dp(40), dp(40)))
+        head.addView(close, lp(dp(40), dp(40)))
+
+        // Storage Usage Bar (Chrome style)
+        val storageLayout = LinearLayout(this)
+        storageLayout.orientation = LinearLayout.VERTICAL
+        storageLayout.setPadding(dp(6), dp(10), dp(6), dp(10))
+        val storageText = TextView(this)
+        storageText.text = "Storage: Using local Vortex folder"
+        storageText.textSize = 12.5f
+        storageText.setTextColor(cGray)
+        
+        val barBg = FrameLayout(this)
+        val bgDrawable = GradientDrawable()
+        bgDrawable.cornerRadius = dp(4).toFloat()
+        bgDrawable.setColor(Color.parseColor("#262638"))
+        barBg.background = bgDrawable
+        
+        val fillBar = View(this)
+        val fillDrawable = GradientDrawable()
+        fillDrawable.cornerRadius = dp(4).toFloat()
+        fillDrawable.setColor(cAccent)
+        fillBar.background = fillDrawable
+        barBg.addView(fillBar, FrameLayout.LayoutParams((dp(120)), dp(6)))
+        
+        storageLayout.addView(storageText)
+        storageLayout.addView(barBg, lp(mp, dp(6)).apply { topMargin = dp(6) })
+
+        // Filter Chips Row (All, Videos, Audio, Other)
+        val chipsRow = LinearLayout(this)
+        chipsRow.orientation = LinearLayout.HORIZONTAL
+        chipsRow.setPadding(dp(2), dp(8), dp(2), dp(12))
+
+        fun chip(name: String, selected: Boolean): TextView {
+            val tv = TextView(this)
+            tv.text = name
+            tv.textSize = 13.5f
+            tv.setPadding(dp(16), dp(7), dp(16), dp(7))
+            val g = GradientDrawable()
+            g.cornerRadius = dp(18).toFloat()
+            if (selected) {
+                g.setColor(Color.parseColor("#38286E"))
+                g.setStroke(dp(1), cAccent)
+                tv.setTextColor(cAccent)
+            } else {
+                g.setColor(Color.parseColor("#1C1C28"))
+                g.setStroke(dp(1), Color.parseColor("#38384A"))
+                tv.setTextColor(Color.parseColor("#D0D0E0"))
+            }
+            tv.background = g
+            return tv
+        }
+
+        val sv = ScrollView(this)
+        val list = LinearLayout(this)
+        list.orientation = LinearLayout.VERTICAL
+        list.setPadding(0, dp(4), 0, dp(24))
+        sv.addView(list)
+
+        fun refreshList() {
+            list.removeAllViews()
+            chipsRow.removeAllViews()
+
+            val filters = listOf("All", "Videos", "Audio", "Other")
+            for ((idx, fName) in filters.withIndex()) {
+                val c = chip(fName, currentFilter == idx)
+                val clp = lp(wc, wc)
+                clp.rightMargin = dp(8)
+                c.setOnClickListener {
+                    currentFilter = idx
+                    refreshList()
+                }
+                chipsRow.addView(c, clp)
+            }
+
+            // Filter items based on extension
+            val filtered = downloadHist.filter { item ->
+                val name = item.name.lowercase()
+                when (currentFilter) {
+                    1 -> name.endsWith(".mp4") || name.endsWith(".mkv") || name.endsWith(".webm") || name.endsWith(".avi")
+                    2 -> name.endsWith(".mp3") || name.endsWith(".wav") || name.endsWith(".aac") || name.endsWith(".m4a")
+                    3 -> !name.endsWith(".mp4") && !name.endsWith(".mkv") && !name.endsWith(".mp3") && !name.endsWith(".wav") && !name.endsWith(".zip")
+                    else -> true
+                }
+            }
+
+            if (filtered.isEmpty()) {
+                val tv = TextView(this)
+                tv.text = "No downloads found"
+                tv.setTextColor(cGray)
+                tv.gravity = Gravity.CENTER
+                tv.setPadding(0, dp(50), 0, 0)
+                list.addView(tv)
+                return
+            }
+
+            val fmt = SimpleDateFormat("dd MMM, yyyy", Locale.getDefault())
+            for (d in filtered) {
+                val row = LinearLayout(this)
+                row.orientation = LinearLayout.HORIZONTAL
+                row.gravity = Gravity.CENTER_VERTICAL
+                row.setPadding(dp(6), dp(10), dp(6), dp(10))
+
+                // File type icon / badge
+                val iconBox = LinearLayout(this)
+                iconBox.gravity = Gravity.CENTER
+                val ig = GradientDrawable()
+                ig.shape = GradientDrawable.RECTANGLE
+                ig.cornerRadius = dp(8).toFloat()
+                ig.setColor(Color.parseColor("#1D1836"))
+                iconBox.background = ig
+                
+                val fileIcon = IconView(this, 15)
+                fileIcon.tint = cAccent
+                fileIcon.isClickable = false
+                iconBox.addView(fileIcon, lp(dp(24), dp(24)))
+
+                // Details
+                val details = LinearLayout(this)
+                details.orientation = LinearLayout.VERTICAL
+                val t1 = TextView(this)
+                t1.text = d.name
+                t1.textSize = 15f
+                t1.setTextColor(Color.WHITE)
+                t1.maxLines = 1
+                t1.ellipsize = TextUtils.TruncateAt.END
+
+                val t2 = TextView(this)
+                t2.text = fmt.format(Date(d.ms)) + "  ·  Vortex Download"
+                t2.textSize = 12f
+                t2.setTextColor(cGray)
+
+                details.addView(t1)
+                details.addView(t2)
+
+                // Delete 3-dot or delete button
+                val delBtn = IconView(this, 7)
+                delBtn.tint = cGray
+                delBtn.ratio = 0.45f
+                delBtn.setOnClickListener {
+                    downloadHist.remove(d)
+                    saveDownloads()
+                    toast("Deleted record")
+                    refreshList()
+                }
+
+                val lIcon = lp(dp(40), dp(40))
+                lIcon.rightMargin = dp(12)
+                row.addView(iconBox, lIcon)
+                row.addView(details, lp(0, wc, 1f))
+                row.addView(delBtn, lp(dp(36), dp(36)))
+
+                row.setOnClickListener {
+                    toast("Saved in " + d.path)
+                }
+                list.addView(row)
+            }
+        }
+
+        trash.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("Clear all downloads")
+                .setMessage("Remove all download records from history?")
+                .setPositiveButton("Clear") { _, _ ->
+                    downloadHist.clear()
+                    saveDownloads()
+                    refreshList()
+                    toast("Cleared")
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+
+        refreshList()
+
+        page.addView(head)
+        page.addView(storageLayout)
+        page.addView(chipsRow)
+        page.addView(sv, lp(mp, 0, 1f))
+        openOverlay(page)
+    }
+
+    
     private fun handleGeo(origin: String, cb: GeolocationPermissions.Callback) {
         val host = hostOf(origin) ?: origin
         AlertDialog.Builder(this)
@@ -1229,6 +1463,24 @@ class MainActivity : Activity() {
                 true
             } else false
         }
+            w.setDownloadListener { dlUrl, userAgent, contentDisposition, mime, _ ->
+            val fileName = URLUtil.guessFileName(dlUrl, contentDisposition, mime)
+            val req = DownloadManager.Request(Uri.parse(dlUrl))
+            req.setMimeType(mime)
+            req.addRequestHeader("User-Agent", userAgent)
+            req.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            req.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
+            
+            val dm = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+            dm.enqueue(req)
+
+            // Save to internal history list
+            downloadHist.add(0, DownloadItem(fileName, dlUrl, "Downloads/Vortex/$fileName", System.currentTimeMillis()))
+            saveDownloads()
+
+            toast("Downloading $fileName...")
+        }
+
 
         openOverlay(page)
         et.selectAll()
