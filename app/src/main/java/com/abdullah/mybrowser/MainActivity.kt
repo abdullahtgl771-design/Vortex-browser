@@ -11,6 +11,8 @@ import android.app.DownloadManager
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ShortcutInfo
+import android.content.pm.ShortcutManager
 import android.content.SharedPreferences
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
@@ -21,6 +23,7 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.Icon
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -1523,43 +1526,41 @@ window.vxFeedErr=function(){
             .show()
     }
 
-    private fun createShortcut() {
-        val u = tabs[cur].url
-        val title = tabs[cur].title ?: "Vortex Shortcut"
-        if (u == null || shown(u).isEmpty() || u.startsWith(homeUrl)) {
-            toast("Open a valid webpage first")
+    private fun createWebsiteShortcut() {
+        val web = tabs.getOrNull(cur)
+        val currentUrl = web?.url?.takeIf { it.startsWith("https://") || it.startsWith("http://") }
+        if (currentUrl.isNullOrBlank()) {
+            toast("Open a website first")
             return
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val shortcutManager = getSystemService(ShortcutManager::class.java)
-            if (shortcutManager != null && shortcutManager.isRequestPinShortcutSupported) {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(u)).apply {
-                    setClassName(packageName, this@MainActivity::class.java.name)
-                }
-                val pinShortcutInfo = android.content.pm.ShortcutInfo.Builder(this, "shortcut_" + System.currentTimeMillis())
-                    .setShortLabel(title)
-                    .setLongLabel(title)
-                    .setIcon(android.graphics.drawable.Icon.createWithResource(this, android.R.drawable.ic_menu_compass))
-                    .setIntent(intent)
-                    .build()
-                shortcutManager.requestPinShortcut(pinShortcutInfo, null)
-                toast("Shortcut creation requested")
-            } else {
-                toast("Pin shortcut not supported on this device")
-            }
-        } else {
-            val shortcutIntent = Intent().apply {
+        val title = web.title?.takeIf { it.isNotBlank() }?.take(30)
+            ?: hostOf(currentUrl) ?: "Website"
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            toast("Home-screen shortcuts require Android 8.0 or later")
+            return
+        }
+        val manager = getSystemService(ShortcutManager::class.java)
+        if (manager == null || !manager.isRequestPinShortcutSupported) {
+            toast("Your launcher does not support pinned shortcuts")
+            return
+        }
+        try {
+            val launch = Intent(this, MainActivity::class.java).apply {
                 action = Intent.ACTION_VIEW
-                data = Uri.parse(u)
+                data = Uri.parse(currentUrl)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
-            val addIntent = Intent().apply {
-                putExtra(Intent.EXTRA_SHORTCUT_INTENT, shortcutIntent)
-                putExtra(Intent.EXTRA_SHORTCUT_NAME, title)
-                putExtra(Intent.EXTRA_SHORTCUT_ICON_RESOURCE, Intent.ShortcutIconResource.fromContext(this@MainActivity, android.R.drawable.ic_menu_compass))
-                action = "com.android.launcher.action.INSTALL_SHORTCUT"
+            val icon = try {
+                Icon.createWithResource(this, applicationInfo.icon)
+            } catch (_: Exception) {
+                Icon.createWithResource(this, android.R.drawable.ic_menu_view)
             }
-            sendBroadcast(addIntent)
-            toast("Shortcut requested")
+            val shortcut = ShortcutInfo.Builder(this, "vortex_" + currentUrl.hashCode())
+                .setShortLabel(title).setLongLabel(title).setIcon(icon).setIntent(launch).build()
+            manager.requestPinShortcut(shortcut, null)
+            toast("Shortcut request sent")
+        } catch (e: Exception) {
+            toast("Could not create shortcut: " + (e.message ?: "unknown error"))
         }
     }
 
@@ -1602,7 +1603,7 @@ window.vxFeedErr=function(){
             Tool(6, "Search Engine", engines[engineIdx].first) { cycleEngine() },
             Tool(23, "History", "Websites and searches") { showHistory(false) },
             Tool(24, "Clear History", "Delete browsing data") { showClearDialog() },
-            Tool(2, "Install Shortcut", "Create home shortcut") { createShortcut() },
+            Tool(21, "Install / Create Shortcut", "Add this website to your home screen") { createWebsiteShortcut() },
             Tool(25, "Help & Feedback", "Message the developer") { showHelp() }
         )
 
@@ -1746,7 +1747,9 @@ window.vxFeedErr=function(){
                     val host = request.url.host ?: ""
                     val isIp = host.all { it.isDigit() || it == '.' || it == ':' }
                     if ((sch == "http" || sch == "https") && host.isNotEmpty() && host != "vortex.local" && !isIp) {
-                        if (blocked.any { host == it || host.endsWith(".$it") } || dohBlocked(host)) {
+                        // Keep this callback fast. Synchronous DNS-over-HTTPS checks here block WebView's
+                        // resource thread and can make video playback stutter/buffer.
+                        if (blocked.any { host == it || host.endsWith(".$it") }) {
                             return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
                         }
                     }
@@ -1841,28 +1844,62 @@ window.vxFeedErr=function(){
         }
 
         w.setDownloadListener { dlUrl, userAgent, contentDisposition, mime, _ ->
-            var fileName = URLUtil.guessFileName(dlUrl, contentDisposition, mime)
-            if (mime != null) {
-                if (mime.contains("application/vnd.android.package-archive") && !fileName.endsWith(".apk")) {
-                    fileName = fileName.substringBeforeLast('.') + ".apk"
-                } else if (fileName.endsWith(".bin")) {
-                    if (mime.contains("video/mp4")) fileName = fileName.replace(".bin", ".mp4")
-                    else if (mime.contains("audio/mpeg")) fileName = fileName.replace(".bin", ".mp3")
-                    else if (mime.contains("image/")) fileName = fileName.replace(".bin", ".jpg")
-                    else if (mime.contains("application/vnd.android.package-archive")) fileName = fileName.replace(".bin", ".apk")
+            try {
+                val downloadUri = Uri.parse(dlUrl)
+                val safeMime = mime?.substringBefore(";")?.trim()?.lowercase(Locale.ROOT)
+                var fileName = URLUtil.guessFileName(dlUrl, contentDisposition, safeMime)
+                val urlName = downloadUri.lastPathSegment?.lowercase(Locale.ROOT).orEmpty()
+                val extFromMime = when (safeMime) {
+                    "application/vnd.android.package-archive" -> ".apk"
+                    "application/pdf" -> ".pdf"
+                    "video/mp4" -> ".mp4"
+                    "video/webm" -> ".webm"
+                    "audio/mpeg" -> ".mp3"
+                    "audio/mp4" -> ".m4a"
+                    "image/jpeg" -> ".jpg"
+                    "image/png" -> ".png"
+                    "application/zip" -> ".zip"
+                    "application/x-7z-compressed" -> ".7z"
+                    "application/vnd.rar" -> ".rar"
+                    else -> ""
                 }
-            }
-            val req = DownloadManager.Request(Uri.parse(dlUrl))
-            req.setMimeType(mime)
-            req.addRequestHeader("User-Agent", userAgent)
-            req.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            req.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
-            val dm = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
-            dm.enqueue(req)
+                if (fileName.isBlank() || fileName.equals("download", true) || fileName.endsWith(".bin", true)) {
+                    fileName = if (urlName.contains('.') && !urlName.endsWith(".bin")) {
+                        URLUtil.guessFileName(urlName, contentDisposition, safeMime)
+                    } else {
+                        val base = fileName.substringBeforeLast('.', fileName)
+                            .takeIf { it.isNotBlank() && !it.equals("download", true) } ?: "Vortex_Download"
+                        base + extFromMime
+                    }
+                }
+                if (!fileName.contains('.') && extFromMime.isNotEmpty()) fileName += extFromMime
+                fileName = fileName.replace(Regex("[\\\\/:*?<>|]"), "_").replace("\\"", "_").take(120)
+                if (fileName.isBlank()) fileName = "Vortex_Download"
 
-            downloadHist.add(0, DownloadItem(fileName, dlUrl, "Downloads/Vortex/$fileName", System.currentTimeMillis()))
-            saveDownloads()
-            toast("Downloading $fileName...")
+                val request = DownloadManager.Request(downloadUri)
+                request.setMimeType(safeMime)
+                request.addRequestHeader("User-Agent", userAgent ?: WebSettings.getDefaultUserAgent(this))
+                CookieManager.getInstance().getCookie(dlUrl)?.takeIf { it.isNotBlank() }?.let {
+                    request.addRequestHeader("Cookie", it)
+                }
+                tabs.getOrNull(cur)?.url?.takeIf { it.isNotBlank() }?.let {
+                    request.addRequestHeader("Referer", it)
+                }
+                request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                request.setTitle(fileName)
+                request.setDescription("Downloading with Vortex Browser")
+                request.setAllowedOverMetered(true)
+                request.setAllowedOverRoaming(false)
+                request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
+
+                val manager = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+                manager.enqueue(request)
+                downloadHist.add(0, DownloadItem(fileName, dlUrl, "Downloads/$fileName", System.currentTimeMillis()))
+                saveDownloads()
+                toast("Download started: $fileName")
+            } catch (e: Exception) {
+                toast("Download failed: " + (e.message ?: "Please try again"))
+            }
         }
 
         tabs.add(w)
