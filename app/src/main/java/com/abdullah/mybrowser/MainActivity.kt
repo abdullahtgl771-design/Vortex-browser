@@ -1,5 +1,7 @@
 package com.vortex.browser
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
