@@ -2107,6 +2107,30 @@ window.vxFeedErr=function(){
                 if (view !== tabs.getOrNull(cur)) return
                 progress.progress = newProgress
                 progress.visibility = if (newProgress in 1..99) View.VISIBLE else View.GONE
+                            override fun onPermissionRequest(request: PermissionRequest) {
+                runOnUiThread { handleWebPermission(request) }
+            }
+
+            override fun onGeolocationPermissionsShowPrompt(origin: String, callback: GeolocationPermissions.Callback) {
+                handleGeo(origin, callback)
+            }
+
+            override fun onShowFileChooser(
+                webView: WebView,
+                filePathCallback: ValueCallback<Array<Uri>>,
+                fileChooserParams: WebChromeClient.FileChooserParams
+            ): Boolean {
+                fileCallback?.onReceiveValue(null)
+                fileCallback = filePathCallback
+                return try {
+                    startActivityForResult(fileChooserParams.createIntent(), 78)
+                    true
+                } catch (e: Exception) {
+                    fileCallback = null
+                    toast("File picker not available")
+                    false
+                }
+            }
             }
         }
 
