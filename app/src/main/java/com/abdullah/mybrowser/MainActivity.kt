@@ -37,6 +37,8 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
+import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.LinearInterpolator
 import android.view.inputmethod.EditorInfo
@@ -55,11 +57,8 @@ import java.util.Date
 import java.util.Locale
 
 class DownloadItem(val name: String, val url: String, val path: String, val ms: Long)
-
 class Rule(var host: String, var css: String, var js: String, var on: Boolean)
-
 class Tool(val kind: Int, val title: String, val sub: String, val action: () -> Unit)
-
 class HistItem(val t: String, val u: String, val ms: Long)
 
 class IconView(ctx: Context, private val kind: Int) : View(ctx) {
@@ -95,10 +94,7 @@ class IconView(ctx: Context, private val kind: Int) : View(ctx) {
     override fun onDraw(c: Canvas) {
         val size = minOf(width, height) * ratio
         val a = if (isPressed) 110 else 255
-        p.color = tint
-        p.alpha = a
-        t.color = tint
-        t.alpha = a
+        p.color = tint; p.alpha = a; t.color = tint; t.alpha = a
         c.save()
         c.translate(width / 2f - size / 2f, height / 2f - size / 2f)
         c.scale(size / 24f, size / 24f)
@@ -152,11 +148,7 @@ class PullLayout(ctx: Context) : FrameLayout(ctx) {
         bg.shape = GradientDrawable.OVAL
         bg.setColor(Color.parseColor("#2A2150"))
         bg.setStroke((1 * density).toInt(), Color.parseColor("#55FFFFFF"))
-        ind.background = bg
-        ind.tint = Color.parseColor("#B9A8FF")
-        ind.isClickable = false
-        ind.alpha = 0f
-        ind.translationY = -60f * density
+        ind.background = bg; ind.tint = Color.parseColor("#B9A8FF"); ind.isClickable = false; ind.alpha = 0f; ind.translationY = -60f * density
     }
 
     fun attach() {
@@ -202,10 +194,7 @@ class PullLayout(ctx: Context) : FrameLayout(ctx) {
         refreshing = true
         ind.animate().translationY(24f * density).alpha(1f).setDuration(150).start()
         val a = ObjectAnimator.ofFloat(ind, View.ROTATION, ind.rotation, ind.rotation + 360f)
-        a.duration = 700
-        a.repeatCount = ValueAnimator.INFINITE
-        a.interpolator = LinearInterpolator()
-        a.start()
+        a.duration = 700; a.repeatCount = ValueAnimator.INFINITE; a.interpolator = LinearInterpolator(); a.start()
         spin = a
         onRefresh()
         postDelayed({ finish() }, 6000L)
@@ -241,6 +230,7 @@ class MainActivity : Activity() {
     private lateinit var plusBtn: IconView
     private lateinit var tabsBtn: IconView
     private lateinit var toolbar: LinearLayout
+    private lateinit var mainRoot: LinearLayout
     private lateinit var prefs: SharedPreferences
 
     private val rules = mutableListOf<Rule>()
@@ -363,60 +353,6 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun grantWeb(req: PermissionRequest, cam: Boolean, mic: Boolean) {
-        val list = ArrayList<String>()
-        if (cam) list.add(PermissionRequest.RESOURCE_VIDEO_CAPTURE)
-        if (mic) list.add(PermissionRequest.RESOURCE_AUDIO_CAPTURE)
-        req.grant(list.toTypedArray())
-    }
-
-    private fun handleWebPermission(req: PermissionRequest) {
-        val needCam = req.resources.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE)
-        val needMic = req.resources.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE)
-        if (!needCam && !needMic) { req.deny(); return }
-        val what = if (needCam && needMic) "camera and microphone" else if (needCam) "camera" else "microphone"
-        val host = req.origin.host ?: "This site"
-        AlertDialog.Builder(this)
-            .setTitle("Permission request")
-            .setMessage("$host wants to use your $what.")
-            .setPositiveButton("Allow") { _, _ ->
-                val need = ArrayList<String>()
-                if (needCam && !hasPerm(Manifest.permission.CAMERA)) need.add(Manifest.permission.CAMERA)
-                if (needMic && !hasPerm(Manifest.permission.RECORD_AUDIO)) need.add(Manifest.permission.RECORD_AUDIO)
-                if (need.isEmpty()) {
-                    grantWeb(req, needCam, needMic)
-                } else {
-                    pendingPerm?.deny()
-                    pendingPerm = req
-                    requestPermissions(need.toTypedArray(), 91)
-                }
-            }
-            .setNegativeButton("Block") { _, _ -> req.deny() }
-            .setOnCancelListener { req.deny() }
-            .show()
-    }
-
-    private fun handleGeo(origin: String, cb: GeolocationPermissions.Callback) {
-        val host = hostOf(origin) ?: origin
-        AlertDialog.Builder(this)
-            .setTitle("Location request")
-            .setMessage("$host wants to know your location.")
-            .setPositiveButton("Allow") { _, _ ->
-                if (hasPerm(Manifest.permission.ACCESS_FINE_LOCATION)) {
-                    cb.invoke(origin, true, false)
-                } else {
-                    pendingGeoCb = cb
-                    pendingGeoOrigin = origin
-                    requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION), 92)
-                }
-            }
-            .setNegativeButton("Block") { _, _ -> cb.invoke(origin, false, false) }
-            .setOnCancelListener { cb.invoke(origin, false, false) }
-            .show()
-    }
-
-    // ---------- Download History Logic ----------
-
     private fun loadDownloads() {
         try {
             val raw = prefs.getString("dl_hist", "[]") ?: "[]"
@@ -432,10 +368,7 @@ class MainActivity : Activity() {
         val a = JSONArray()
         for (d in downloadHist) {
             val o = JSONObject()
-            o.put("n", d.name)
-            o.put("u", d.url)
-            o.put("p", d.path)
-            o.put("ms", d.ms)
+            o.put("n", d.name); o.put("u", d.url); o.put("p", d.path); o.put("ms", d.ms)
             a.put(o)
         }
         prefs.edit().putString("dl_hist", a.toString()).apply()
@@ -452,15 +385,10 @@ class MainActivity : Activity() {
         head.orientation = LinearLayout.HORIZONTAL
         head.gravity = Gravity.CENTER_VERTICAL
         val title = TextView(this)
-        title.text = "Downloads"
-        title.textSize = 21f
-        title.setTextColor(Color.WHITE)
-        title.setPadding(dp(6), 0, 0, 0)
+        title.text = "Downloads"; title.textSize = 21f; title.setTextColor(Color.WHITE); title.setPadding(dp(6), 0, 0, 0)
 
-        val trash = IconView(this, 24)
-        trash.tint = Color.parseColor("#C4C4D4")
-        val close = IconView(this, 7)
-        close.tint = Color.parseColor("#C4C4D4")
+        val trash = IconView(this, 24); trash.tint = Color.parseColor("#C4C4D4")
+        val close = IconView(this, 7); close.tint = Color.parseColor("#C4C4D4")
         close.setOnClickListener { closeOverlay() }
 
         head.addView(title, lp(0, wc, 1f))
@@ -496,8 +424,7 @@ class MainActivity : Activity() {
 
         fun chip(name: String, selected: Boolean): TextView {
             val tv = TextView(this)
-            tv.text = name
-            tv.textSize = 13.5f
+            tv.text = name; tv.textSize = 13.5f
             tv.setPadding(dp(16), dp(7), dp(16), dp(7))
             val g = GradientDrawable()
             g.cornerRadius = dp(18).toFloat()
@@ -559,51 +486,30 @@ class MainActivity : Activity() {
                 row.gravity = Gravity.CENTER_VERTICAL
                 row.setPadding(dp(6), dp(10), dp(6), dp(10))
 
-                val iconBox = LinearLayout(this)
-                iconBox.gravity = Gravity.CENTER
+                val iconBox = LinearLayout(this); iconBox.gravity = Gravity.CENTER
                 val ig = GradientDrawable()
                 ig.shape = GradientDrawable.RECTANGLE
                 ig.cornerRadius = dp(8).toFloat()
                 ig.setColor(Color.parseColor("#1D1836"))
                 iconBox.background = ig
                 
-                val fileIcon = IconView(this, 15)
-                fileIcon.tint = cAccent
-                fileIcon.isClickable = false
+                val fileIcon = IconView(this, 15); fileIcon.tint = cAccent; fileIcon.isClickable = false
                 iconBox.addView(fileIcon, lp(dp(24), dp(24)))
 
-                val details = LinearLayout(this)
-                details.orientation = LinearLayout.VERTICAL
-                val t1 = TextView(this)
-                t1.text = d.name
-                t1.textSize = 15f
-                t1.setTextColor(Color.WHITE)
-                t1.maxLines = 1
-                t1.ellipsize = TextUtils.TruncateAt.END
+                val details = LinearLayout(this); details.orientation = LinearLayout.VERTICAL
+                val t1 = TextView(this); t1.text = d.name; t1.textSize = 15f; t1.setTextColor(Color.WHITE); t1.maxLines = 1; t1.ellipsize = TextUtils.TruncateAt.END
 
-                val t2 = TextView(this)
-                t2.text = fmt.format(Date(d.ms)) + "  ·  Vortex Download"
-                t2.textSize = 12f
-                t2.setTextColor(cGray)
-                details.addView(t1)
-                details.addView(t2)
+                val t2 = TextView(this); t2.text = fmt.format(Date(d.ms)) + "  ·  Vortex Download"
+                t2.textSize = 12f; t2.setTextColor(cGray)
+                details.addView(t1); details.addView(t2)
 
-                val delBtn = IconView(this, 7)
-                delBtn.tint = cGray
-                delBtn.ratio = 0.45f
+                val delBtn = IconView(this, 7); delBtn.tint = cGray; delBtn.ratio = 0.45f
                 delBtn.setOnClickListener {
-                    downloadHist.remove(d)
-                    saveDownloads()
-                    toast("Deleted record")
-                    refreshList()
+                    downloadHist.remove(d); saveDownloads(); toast("Deleted record"); refreshList()
                 }
 
-                val lIcon = lp(dp(40), dp(40))
-                lIcon.rightMargin = dp(12)
-                row.addView(iconBox, lIcon)
-                row.addView(details, lp(0, wc, 1f))
-                row.addView(delBtn, lp(dp(36), dp(36)))
-
+                val lIcon = lp(dp(40), dp(40)); lIcon.rightMargin = dp(12)
+                row.addView(iconBox, lIcon); row.addView(details, lp(0, wc, 1f)); row.addView(delBtn, lp(dp(36), dp(36)))
                 row.setOnClickListener { toast("Saved in " + d.path) }
                 list.addView(row)
             }
@@ -614,24 +520,16 @@ class MainActivity : Activity() {
                 .setTitle("Clear all downloads")
                 .setMessage("Remove all download records from history?")
                 .setPositiveButton("Clear") { _, _ ->
-                    downloadHist.clear()
-                    saveDownloads()
-                    refreshList()
-                    toast("Cleared")
+                    downloadHist.clear(); saveDownloads(); refreshList(); toast("Cleared")
                 }
                 .setNegativeButton("Cancel", null)
                 .show()
         }
 
         refreshList()
-        page.addView(head)
-        page.addView(storageLayout)
-        page.addView(chipsRow)
-        page.addView(sv, lp(mp, 0, 1f))
+        page.addView(head); page.addView(storageLayout); page.addView(chipsRow); page.addView(sv, lp(mp, 0, 1f))
         openOverlay(page)
     }
-
-    // ---------- Helpers ----------
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
     private fun lp(w: Int, h: Int, weight: Float = 0f) = LinearLayout.LayoutParams(w, h, weight)
@@ -671,16 +569,13 @@ class MainActivity : Activity() {
 
     private fun staggerIn(views: List<View>) {
         for ((i, v) in views.withIndex()) {
-            v.alpha = 0f
-            v.translationY = dp(18).toFloat()
+            v.alpha = 0f; v.translationY = dp(18).toFloat()
             v.animate().alpha(1f).translationY(0f).setStartDelay(50L + i * 30L).setDuration(260).setInterpolator(DecelerateInterpolator(1.6f)).start()
         }
     }
 
     private fun animateIn(v: View) {
-        v.alpha = 0f
-        v.scaleX = 0.94f
-        v.scaleY = 0.94f
+        v.alpha = 0f; v.scaleX = 0.94f; v.scaleY = 0.94f
         v.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(280).setInterpolator(DecelerateInterpolator(1.5f)).start()
     }
 
@@ -704,13 +599,12 @@ class MainActivity : Activity() {
         try { startActivityForResult(i, 77) } catch (e: Exception) { toast("Voice search not available") }
     }
 
-    // ---------- UI Builder with Hide-on-Scroll Navigation ----------
-
     @SuppressLint("ClickableViewAccessibility")
     private fun buildUi() {
         val frame = FrameLayout(this)
-        val main = LinearLayout(this)
-        main.orientation = LinearLayout.VERTICAL
+        mainRoot = LinearLayout(this)
+        mainRoot.orientation = LinearLayout.VERTICAL
+        mainRoot.background = bgGradient()
 
         toolbar = LinearLayout(this)
         toolbar.orientation = LinearLayout.HORIZONTAL
@@ -737,16 +631,14 @@ class MainActivity : Activity() {
         urlBar.gravity = Gravity.CENTER_VERTICAL
         urlBar.setPadding(dp(16), 0, 0, 0)
 
-        val mic = IconView(this, 5)
-        mic.tint = cAccent
+        val mic = IconView(this, 5); mic.tint = cAccent
         mic.setOnClickListener { startVoice() }
 
         pill.addView(urlBar, lp(0, mp, 1f))
         pill.addView(mic, lp(dp(40), dp(40)))
 
         spacer = View(this)
-        plusBtn = IconView(this, 9)
-        plusBtn.ratio = 0.6f
+        plusBtn = IconView(this, 9); plusBtn.ratio = 0.6f
         plusBtn.setOnClickListener { newTab("home") }
         tabsBtn = IconView(this, 3)
         tabsBtn.setOnClickListener { showTabsPage() }
@@ -754,8 +646,7 @@ class MainActivity : Activity() {
         menuBtn.setOnClickListener { showToolbox() }
 
         toolbar.addView(homeBtn, lp(dp(44), dp(44)))
-        val pl = lp(0, dp(40), 1f)
-        pl.setMargins(dp(4), 0, dp(4), 0)
+        val pl = lp(0, dp(40), 1f); pl.setMargins(dp(4), 0, dp(4), 0)
         toolbar.addView(pill, pl)
         toolbar.addView(spacer, lp(0, 1, 1f))
         toolbar.addView(plusBtn, lp(dp(44), dp(44)))
@@ -766,8 +657,7 @@ class MainActivity : Activity() {
         line.setBackgroundColor(Color.argb(0x22, 255, 255, 255))
 
         progress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal)
-        progress.max = 100
-        progress.visibility = View.GONE
+        progress.max = 100; progress.visibility = View.GONE
         progress.progressTintList = ColorStateList.valueOf(cAccent)
 
         container = FrameLayout(this)
@@ -781,22 +671,21 @@ class MainActivity : Activity() {
         pull.onRefresh = {
             val w = tabs[cur]
             if (shown(w.url).isEmpty()) {
-                forceFeed = true
-                showHome(w)
+                forceFeed = true; showHome(w)
             } else {
                 w.reload()
             }
         }
 
-        main.addView(toolbar)
-        main.addView(line, lp(mp, dp(1)))
-        main.addView(progress, lp(mp, dp(2)))
-        main.addView(pull, lp(mp, 0, 1f))
+        mainRoot.addView(toolbar)
+        mainRoot.addView(line, lp(mp, dp(1)))
+        mainRoot.addView(progress, lp(mp, dp(2)))
+        mainRoot.addView(pull, lp(mp, 0, 1f))
 
         overlay = FrameLayout(this)
         overlay.visibility = View.GONE
 
-        frame.addView(main, FrameLayout.LayoutParams(mp, mp))
+        frame.addView(mainRoot, FrameLayout.LayoutParams(mp, mp))
         frame.addView(overlay, FrameLayout.LayoutParams(mp, mp))
         setContentView(frame)
     }
@@ -808,11 +697,9 @@ class MainActivity : Activity() {
         val dy = scrollY - lastScrollY
         if (Math.abs(dy) > 10) {
             if (dy > 0 && !isToolbarHidden && scrollY > 100) {
-                // Scroll down -> Hide toolbar with smooth animation
                 isToolbarHidden = true
                 toolbar.animate().translationY(-toolbar.height.toFloat()).alpha(0f).setDuration(200).start()
             } else if (dy < 0 && isToolbarHidden) {
-                // Scroll up -> Show toolbar with smooth animation
                 isToolbarHidden = false
                 toolbar.animate().translationY(0f).alpha(1f).setDuration(200).start()
             }
@@ -840,10 +727,7 @@ class MainActivity : Activity() {
         overlay.removeAllViews()
         overlay.addView(v, FrameLayout.LayoutParams(mp, mp))
         overlay.visibility = View.VISIBLE
-        v.alpha = 0f
-        v.translationY = dp(36).toFloat()
-        v.scaleX = 0.97f
-        v.scaleY = 0.97f
+        v.alpha = 0f; v.translationY = dp(36).toFloat(); v.scaleX = 0.97f; v.scaleY = 0.97f
         v.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f).setDuration(260).setInterpolator(DecelerateInterpolator(1.6f)).start()
     }
 
@@ -918,8 +802,6 @@ class MainActivity : Activity() {
         }
     }
 
-    // ---------- History ----------
-
     private fun loadHistory() {
         try {
             val raw = prefs.getString("web_hist", "[]") ?: "[]"
@@ -937,9 +819,7 @@ class MainActivity : Activity() {
     private fun saveWebHist() {
         val a = JSONArray()
         for (h in webHist) {
-            val o = JSONObject()
-            o.put("t", h.t); o.put("u", h.u); o.put("ms", h.ms)
-            a.put(o)
+            val o = JSONObject(); o.put("t", h.t); o.put("u", h.u); o.put("ms", h.ms); a.put(o)
         }
         prefs.edit().putString("web_hist", a.toString()).apply()
     }
@@ -974,44 +854,33 @@ class MainActivity : Activity() {
             .setItems(opts) { _, i ->
                 if (i == 0 || i == 2) { webHist.clear(); saveWebHist() }
                 if (i == 1 || i == 2) { searchHist.clear(); saveSearchHist() }
-                toast("History cleared")
-                after?.invoke()
+                toast("History cleared"); after?.invoke()
             }
             .setNegativeButton("Cancel", null)
             .show()
     }
 
     private fun histRow(lead: View, title: String, sub: String, click: () -> Unit, onLong: () -> Unit): View {
-        val row = LinearLayout(this)
-        row.orientation = LinearLayout.HORIZONTAL
-        row.gravity = Gravity.CENTER_VERTICAL
+        val row = LinearLayout(this); row.orientation = LinearLayout.HORIZONTAL; row.gravity = Gravity.CENTER_VERTICAL
         row.setPadding(dp(6), dp(8), dp(6), dp(8))
-        val col = LinearLayout(this)
-        col.orientation = LinearLayout.VERTICAL
-        val t1 = TextView(this)
-        t1.text = title; t1.textSize = 15f; t1.setTextColor(Color.WHITE); t1.maxLines = 1; t1.ellipsize = TextUtils.TruncateAt.END
+        val col = LinearLayout(this); col.orientation = LinearLayout.VERTICAL
+        val t1 = TextView(this); t1.text = title; t1.textSize = 15f; t1.setTextColor(Color.WHITE); t1.maxLines = 1; t1.ellipsize = TextUtils.TruncateAt.END
         col.addView(t1)
         if (sub.isNotEmpty()) {
-            val t2 = TextView(this)
-            t2.text = sub; t2.textSize = 12f; t2.setTextColor(cGray); t2.maxLines = 1; t2.ellipsize = TextUtils.TruncateAt.END
+            val t2 = TextView(this); t2.text = sub; t2.textSize = 12f; t2.setTextColor(cGray); t2.maxLines = 1; t2.ellipsize = TextUtils.TruncateAt.END
             col.addView(t2)
         }
-        val l0 = lp(dp(40), dp(40))
-        l0.rightMargin = dp(12)
-        row.addView(lead, l0)
-        row.addView(col, lp(0, wc, 1f))
+        val l0 = lp(dp(40), dp(40)); l0.rightMargin = dp(12)
+        row.addView(lead, l0); row.addView(col, lp(0, wc, 1f))
         row.setOnClickListener { click() }
         row.setOnLongClickListener { onLong(); true }
         return row
     }
 
     private fun avatar(letter: String): TextView {
-        val tv = TextView(this)
-        tv.text = letter; tv.gravity = Gravity.CENTER; tv.textSize = 16f; tv.setTextColor(cAccent)
-        val g = GradientDrawable()
-        g.shape = GradientDrawable.OVAL
-        g.setColor(Color.argb(0x26, 255, 255, 255))
-        g.setStroke(dp(1), Color.argb(0x33, 255, 255, 255))
+        val tv = TextView(this); tv.text = letter; tv.gravity = Gravity.CENTER; tv.textSize = 16f; tv.setTextColor(cAccent)
+        val g = GradientDrawable(); g.shape = GradientDrawable.OVAL
+        g.setColor(Color.argb(0x26, 255, 255, 255)); g.setStroke(dp(1), Color.argb(0x33, 255, 255, 255))
         tv.background = g
         return tv
     }
@@ -1020,18 +889,12 @@ class MainActivity : Activity() {
         list.removeAllViews()
         val empty = if (searches) searchHist.isEmpty() else webHist.isEmpty()
         if (empty) {
-            val tv = TextView(this)
-            tv.text = "No history yet"
-            tv.setTextColor(cGray)
-            tv.gravity = Gravity.CENTER
-            tv.setPadding(0, dp(40), 0, 0)
-            list.addView(tv)
-            return
+            val tv = TextView(this); tv.text = "No history yet"; tv.setTextColor(cGray); tv.gravity = Gravity.CENTER; tv.setPadding(0, dp(40), 0, 0)
+            list.addView(tv); return
         }
         if (searches) {
             for (s in searchHist.toList()) {
-                val ic = IconView(this, 23)
-                ic.tint = cGray; ic.isClickable = false
+                val ic = IconView(this, 23); ic.tint = cGray; ic.isClickable = false
                 list.addView(histRow(ic, s, "", { closeOverlay(); submitQuery(s) }, { searchHist.remove(s); saveSearchHist(); toast("Removed"); onChange() }))
             }
         } else {
@@ -1050,63 +913,44 @@ class MainActivity : Activity() {
     }
 
     private fun pillTab(text: String): TextView {
-        val tv = TextView(this)
-        tv.text = text; tv.textSize = 14f; tv.gravity = Gravity.CENTER; tv.setPadding(0, dp(10), 0, dp(10))
+        val tv = TextView(this); tv.text = text; tv.textSize = 14f; tv.gravity = Gravity.CENTER; tv.setPadding(0, dp(10), 0, dp(10))
         return tv
     }
 
     private fun showHistory(startSearches: Boolean) {
         var mode = startSearches
-        val page = LinearLayout(this)
-        page.orientation = LinearLayout.VERTICAL
-        page.background = bgGradient()
+        val page = LinearLayout(this); page.orientation = LinearLayout.VERTICAL; page.background = bgGradient()
         page.setPadding(dp(12), dp(24), dp(12), 0)
 
-        val head = LinearLayout(this)
-        head.orientation = LinearLayout.HORIZONTAL
-        head.gravity = Gravity.CENTER_VERTICAL
-        val title = TextView(this)
-        title.text = "History"; title.textSize = 22f; title.setTextColor(Color.WHITE); title.setPadding(dp(6), 0, 0, 0)
-        val trash = IconView(this, 24)
-        val close = IconView(this, 7)
+        val head = LinearLayout(this); head.orientation = LinearLayout.HORIZONTAL; head.gravity = Gravity.CENTER_VERTICAL
+        val title = TextView(this); title.text = "History"; title.textSize = 22f; title.setTextColor(Color.WHITE); title.setPadding(dp(6), 0, 0, 0)
+        val trash = IconView(this, 24); val close = IconView(this, 7)
         close.setOnClickListener { closeOverlay() }
-        head.addView(title, lp(0, wc, 1f))
-        head.addView(trash, lp(dp(44), dp(44)))
-        head.addView(close, lp(dp(44), dp(44)))
+        head.addView(title, lp(0, wc, 1f)); head.addView(trash, lp(dp(44), dp(44))); head.addView(close, lp(dp(44), dp(44)))
 
-        val tabW = pillTab("Websites")
-        val tabS = pillTab("Searches")
-        val tabsRow = LinearLayout(this)
-        tabsRow.orientation = LinearLayout.HORIZONTAL
-        tabsRow.setPadding(0, dp(8), 0, dp(8))
-        tabsRow.addView(tabW, cellLp())
-        tabsRow.addView(tabS, cellLp())
+        val tabW = pillTab("Websites"); val tabS = pillTab("Searches")
+        val tabsRow = LinearLayout(this); tabsRow.orientation = LinearLayout.HORIZONTAL; tabsRow.setPadding(0, dp(8), 0, dp(8))
+        tabsRow.addView(tabW, cellLp()); tabsRow.addView(tabS, cellLp())
 
         val sv = ScrollView(this)
-        val list = LinearLayout(this)
-        list.orientation = LinearLayout.VERTICAL
-        list.setPadding(0, dp(4), 0, dp(24))
+        val list = LinearLayout(this); list.orientation = LinearLayout.VERTICAL; list.setPadding(0, dp(4), 0, dp(24))
         sv.addView(list)
 
         fun refresh() {
             fillHistory(list, mode) { refresh() }
-            styleTab(tabW, !mode)
-            styleTab(tabS, mode)
+            styleTab(tabW, !mode); styleTab(tabS, mode)
         }
         tabW.setOnClickListener { mode = false; refresh() }
         tabS.setOnClickListener { mode = true; refresh() }
         trash.setOnClickListener { showClearDialog { refresh() } }
         refresh()
 
-        page.addView(head)
-        page.addView(tabsRow)
-        page.addView(sv, lp(mp, 0, 1f))
+        page.addView(head); page.addView(tabsRow); page.addView(sv, lp(mp, 0, 1f))
         openOverlay(page)
     }
 
     private fun fetchSuggest(q: String, cb: (List<String>) -> Unit) {
-        val t = q.trim()
-        val token = ++suggestToken
+        val t = q.trim(); val token = ++suggestToken
         if (t.isEmpty()) return
         Thread {
             try {
@@ -1124,27 +968,18 @@ class MainActivity : Activity() {
     }
 
     private fun suggestRow(list: LinearLayout, et: EditText, kind: Int, text: String): View {
-        val row = LinearLayout(this)
-        row.orientation = LinearLayout.HORIZONTAL
-        row.gravity = Gravity.CENTER_VERTICAL
+        val row = LinearLayout(this); row.orientation = LinearLayout.HORIZONTAL; row.gravity = Gravity.CENTER_VERTICAL
         row.setPadding(dp(6), 0, dp(6), 0)
-        val ic = IconView(this, kind)
-        ic.tint = cGray; ic.ratio = 0.45f; ic.isClickable = false
-        val tv = TextView(this)
-        tv.text = text; tv.textSize = 16f; tv.setTextColor(Color.WHITE); tv.maxLines = 1; tv.ellipsize = TextUtils.TruncateAt.END
-        val fill = IconView(this, 22)
-        fill.tint = cGray; fill.ratio = 0.45f
+        val ic = IconView(this, kind); ic.tint = cGray; ic.ratio = 0.45f; ic.isClickable = false
+        val tv = TextView(this); tv.text = text; tv.textSize = 16f; tv.setTextColor(Color.WHITE); tv.maxLines = 1; tv.ellipsize = TextUtils.TruncateAt.END
+        val fill = IconView(this, 22); fill.tint = cGray; fill.ratio = 0.45f
         fill.setOnClickListener { et.setText(text); et.setSelection(text.length) }
-        row.addView(ic, lp(dp(40), dp(48)))
-        row.addView(tv, lp(0, wc, 1f))
-        row.addView(fill, lp(dp(44), dp(48)))
+        row.addView(ic, lp(dp(40), dp(48))); row.addView(tv, lp(0, wc, 1f)); row.addView(fill, lp(dp(44), dp(48)))
         row.setOnClickListener { closeOverlay(); submitQuery(text) }
         if (kind == 23) {
             row.setOnLongClickListener {
                 searchHist.removeAll { it.equals(text, true) }
-                saveSearchHist()
-                toast("Removed")
-                fillSuggestions(list, et, emptyList())
+                saveSearchHist(); toast("Removed"); fillSuggestions(list, et, emptyList())
                 true
             }
         }
@@ -1170,53 +1005,34 @@ class MainActivity : Activity() {
     }
 
     private fun openSearch(prefill: String) {
-        val page = LinearLayout(this)
-        page.orientation = LinearLayout.VERTICAL
-        page.background = bgGradient()
+        val page = LinearLayout(this); page.orientation = LinearLayout.VERTICAL; page.background = bgGradient()
         page.setPadding(dp(10), dp(24), dp(10), 0)
 
-        val row = LinearLayout(this)
-        row.orientation = LinearLayout.HORIZONTAL
-        row.gravity = Gravity.CENTER_VERTICAL
+        val row = LinearLayout(this); row.orientation = LinearLayout.HORIZONTAL; row.gravity = Gravity.CENTER_VERTICAL
         val back = IconView(this, 0)
         back.setOnClickListener { closeOverlay() }
 
-        val box = LinearLayout(this)
-        box.orientation = LinearLayout.HORIZONTAL
-        box.gravity = Gravity.CENTER_VERTICAL
+        val box = LinearLayout(this); box.orientation = LinearLayout.HORIZONTAL; box.gravity = Gravity.CENTER_VERTICAL
         box.background = glass(24)
 
         val et = EditText(this)
-        et.setSingleLine()
-        et.hint = "Search or enter URL"
-        et.textSize = 16f
-        et.setTextColor(Color.WHITE)
-        et.setHintTextColor(Color.parseColor("#7C7C96"))
-        et.setBackgroundColor(Color.TRANSPARENT)
-        et.setPadding(dp(16), 0, 0, 0)
-        et.imeOptions = EditorInfo.IME_ACTION_GO
+        et.setSingleLine(); et.hint = "Search or enter URL"; et.textSize = 16f; et.setTextColor(Color.WHITE)
+        et.setHintTextColor(Color.parseColor("#7C7C96")); et.setBackgroundColor(Color.TRANSPARENT)
+        et.setPadding(dp(16), 0, 0, 0); et.imeOptions = EditorInfo.IME_ACTION_GO
 
-        val clear = IconView(this, 7)
-        clear.ratio = 0.45f; clear.tint = cGray
+        val clear = IconView(this, 7); clear.ratio = 0.45f; clear.tint = cGray
         clear.setOnClickListener { et.setText("") }
-        val mic = IconView(this, 5)
-        mic.tint = cAccent
+        val mic = IconView(this, 5); mic.tint = cAccent
         mic.setOnClickListener { closeOverlay(); startVoice() }
 
-        box.addView(et, lp(0, dp(46), 1f))
-        box.addView(clear, lp(dp(36), dp(46)))
-        box.addView(mic, lp(dp(40), dp(46)))
-        row.addView(back, lp(dp(44), dp(44)))
-        row.addView(box, lp(0, wc, 1f))
+        box.addView(et, lp(0, dp(46), 1f)); box.addView(clear, lp(dp(36), dp(46))); box.addView(mic, lp(dp(40), dp(46)))
+        row.addView(back, lp(dp(44), dp(44))); row.addView(box, lp(0, wc, 1f))
 
         val sv = ScrollView(this)
-        val list = LinearLayout(this)
-        list.orientation = LinearLayout.VERTICAL
-        list.setPadding(0, dp(10), 0, dp(24))
+        val list = LinearLayout(this); list.orientation = LinearLayout.VERTICAL; list.setPadding(0, dp(10), 0, dp(24))
         sv.addView(list)
 
-        page.addView(row)
-        page.addView(sv, lp(mp, 0, 1f))
+        page.addView(row); page.addView(sv, lp(mp, 0, 1f))
 
         et.setText(prefill)
         fillSuggestions(list, et, emptyList())
@@ -1235,8 +1051,7 @@ class MainActivity : Activity() {
             } else false
         }
         openOverlay(page)
-        et.selectAll()
-        showKeyboard(et)
+        et.selectAll(); showKeyboard(et)
     }
 
     private fun showHome(w: WebView) {
@@ -1554,9 +1369,7 @@ window.vxFeedErr=function(){
     private fun loadRules() {
         val raw = prefs.getString("rules", null)
         if (raw == null) {
-            rules.add(youtubeRule())
-            saveRules()
-            return
+            rules.add(youtubeRule()); saveRules(); return
         }
         try {
             val arr = JSONArray(raw)
@@ -1570,8 +1383,7 @@ window.vxFeedErr=function(){
     private fun saveRules() {
         val arr = JSONArray()
         for (r in rules) {
-            val o = JSONObject()
-            o.put("host", r.host); o.put("css", r.css); o.put("js", r.js); o.put("on", r.on)
+            val o = JSONObject(); o.put("host", r.host); o.put("css", r.css); o.put("js", r.js); o.put("on", r.on)
             arr.put(o)
         }
         prefs.edit().putString("rules", arr.toString()).apply()
@@ -1594,9 +1406,7 @@ window.vxFeedErr=function(){
     private fun showRuleEditor(hostIn: String) {
         val existing = rules.firstOrNull { it.host == hostIn }
         val pad = dp(16)
-        val col = LinearLayout(this)
-        col.orientation = LinearLayout.VERTICAL
-        col.setPadding(pad, pad, pad, pad)
+        val col = LinearLayout(this); col.orientation = LinearLayout.VERTICAL; col.setPadding(pad, pad, pad, pad)
 
         val hostEt = EditText(this); hostEt.setSingleLine(); hostEt.hint = "domain (e.g. youtube.com)"; hostEt.setText(hostIn)
         val cssEt = EditText(this); cssEt.hint = "Custom CSS"; cssEt.minLines = 4; cssEt.gravity = Gravity.TOP; cssEt.setText(existing?.css ?: "")
@@ -1614,14 +1424,12 @@ window.vxFeedErr=function(){
                 if (h.isNotEmpty()) {
                     rules.removeAll { it.host == hostIn || it.host == h }
                     rules.add(Rule(h, cssEt.text.toString(), jsEt.text.toString(), onCb.isChecked))
-                    saveRules()
-                    tabs[cur].reload()
+                    saveRules(); tabs[cur].reload()
                 }
             }
             .setNegativeButton("Delete") { _, _ ->
                 rules.removeAll { it.host == hostIn }
-                saveRules()
-                tabs[cur].reload()
+                saveRules(); tabs[cur].reload()
             }
             .setNeutralButton("Cancel", null)
             .show()
@@ -1677,15 +1485,11 @@ window.vxFeedErr=function(){
     }
 
     private fun showToolbox() {
-        val sv = ScrollView(this)
-        sv.background = bgGradient()
-        val col = LinearLayout(this)
-        col.orientation = LinearLayout.VERTICAL
+        val sv = ScrollView(this); sv.background = bgGradient()
+        val col = LinearLayout(this); col.orientation = LinearLayout.VERTICAL
         col.setPadding(dp(14), dp(28), dp(14), dp(28))
 
-        val head = LinearLayout(this)
-        head.orientation = LinearLayout.HORIZONTAL
-        head.gravity = Gravity.CENTER_VERTICAL
+        val head = LinearLayout(this); head.orientation = LinearLayout.HORIZONTAL; head.gravity = Gravity.CENTER_VERTICAL
         head.setPadding(dp(6), 0, dp(6), dp(18))
 
         val logoId = resources.getIdentifier("logo", "drawable", packageName)
@@ -1705,8 +1509,7 @@ window.vxFeedErr=function(){
         val close = IconView(this, 7)
         close.setOnClickListener { closeOverlay() }
 
-        head.addView(titles, lp(0, wc, 1f))
-        head.addView(close, lp(dp(44), dp(44)))
+        head.addView(titles, lp(0, wc, 1f)); head.addView(close, lp(dp(44), dp(44)))
         col.addView(head)
 
         val tools = listOf(
@@ -1795,9 +1598,7 @@ window.vxFeedErr=function(){
         for (pair in tabs.indices.toList().chunked(2)) {
             val row = LinearLayout(this); row.orientation = LinearLayout.HORIZONTAL
             for (i in pair) {
-                val cv = tabCard(i)
-                cards.add(cv)
-                row.addView(cv, cellLp())
+                val cv = tabCard(i); cards.add(cv); row.addView(cv, cellLp())
             }
             if (pair.size == 1) row.addView(View(this), cellLp())
             col.addView(row)
@@ -1884,9 +1685,7 @@ window.vxFeedErr=function(){
             override fun onPageFinished(view: WebView, url: String) {
                 inject(view, url)
                 if (url.startsWith(homeUrl)) {
-                    val f = forceFeed
-                    forceFeed = false
-                    loadFeed(f)
+                    val f = forceFeed; forceFeed = false; loadFeed(f)
                 } else if (!incog.contains(view) && shown(url).isNotEmpty() && (url.startsWith("http://") || url.startsWith("https://"))) {
                     val ttl = view.title
                     addWebHistory(if (!ttl.isNullOrBlank()) ttl else (hostOf(url) ?: url), url)
@@ -1912,16 +1711,12 @@ window.vxFeedErr=function(){
                 fileCallback?.onReceiveValue(null)
                 fileCallback = filePathCallback
                 return try {
-                    startActivityForResult(fileChooserParams.createIntent(), 78)
-                    true
+                    startActivityForResult(fileChooserParams.createIntent(), 78); true
                 } catch (e: Exception) {
-                    fileCallback = null
-                    toast("File picker not available")
-                    false
+                    fileCallback = null; toast("File picker not available"); false
                 }
             }
 
-            // Advanced custom Video Fullscreen & Gesture Support (Brightness & Volume controls)
             private var customView: View? = null
             private var customViewCallback: CustomViewCallback? = null
 
@@ -1931,10 +1726,26 @@ window.vxFeedErr=function(){
                 customViewCallback = callback
                 requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR
                 
+                // Hide Status & Navigation bars completely in fullscreen video player
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    window.insetsController?.let {
+                        it.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+                        it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    }
+                } else {
+                    @Suppress("DEPRECATION")
+                    window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                            or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                            or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                            or View.SYSTEM_UI_FLAG_FULLSCREEN
+                            or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY)
+                }
+
                 val decor = window.decorView as FrameLayout
                 decor.addView(customView, FrameLayout.LayoutParams(mp, mp))
-                
-                // Add touch listener for Brightness (Right) & Volume (Left) gestures
+
+                // Brightness & Volume Gestures for Video Player
                 customView?.setOnTouchListener(object : View.OnTouchListener {
                     private var startY = 0f
                     private var isRightSide = false
@@ -1949,10 +1760,8 @@ window.vxFeedErr=function(){
                                 if (Math.abs(diff) > 30) {
                                     val lp = window.attributes
                                     if (isRightSide) {
-                                        // Brightness control
                                         lp.screenBrightness = (lp.screenBrightness + (diff / 1000f)).coerceIn(0.01f, 1f)
                                     } else {
-                                        // Volume control via Audio Manager
                                         val am = getSystemService(AUDIO_SERVICE) as android.media.AudioManager
                                         val maxVol = am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
                                         val curVol = am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)
@@ -1970,6 +1779,13 @@ window.vxFeedErr=function(){
             }
 
             override fun onHideCustomView() {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    window.insetsController?.show(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+                } else {
+                    @Suppress("DEPRECATION")
+                    window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+                }
+
                 val decor = window.decorView as FrameLayout
                 if (customView != null) decor.removeView(customView)
                 customView = null
@@ -1979,7 +1795,12 @@ window.vxFeedErr=function(){
         }
 
         w.setDownloadListener { dlUrl, userAgent, contentDisposition, mime, _ ->
-            val fileName = URLUtil.guessFileName(dlUrl, contentDisposition, mime)
+            var fileName = URLUtil.guessFileName(dlUrl, contentDisposition, mime)
+            if (fileName.endsWith(".bin") && mime != null) {
+                if (mime.contains("video/mp4")) fileName = fileName.replace(".bin", ".mp4")
+                else if (mime.contains("audio/mpeg")) fileName = fileName.replace(".bin", ".mp3")
+                else if (mime.contains("image/")) fileName = fileName.replace(".bin", ".jpg")
+            }
             val req = DownloadManager.Request(Uri.parse(dlUrl))
             req.setMimeType(mime)
             req.addRequestHeader("User-Agent", userAgent)
@@ -1993,7 +1814,6 @@ window.vxFeedErr=function(){
             toast("Downloading $fileName...")
         }
 
-        // Scroll listener for Hide-on-Scroll Navigation
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             w.setOnScrollChangeListener { _, _, scrollY, _, _ -> handleScroll(scrollY) }
         }
@@ -2017,9 +1837,7 @@ window.vxFeedErr=function(){
 
     private fun wipeIfIncognito(w: WebView) {
         if (incog.remove(w)) {
-            w.clearCache(true)
-            w.clearHistory()
-            w.clearFormData()
+            w.clearCache(true); w.clearHistory(); w.clearFormData()
         }
     }
 
@@ -2028,20 +1846,15 @@ window.vxFeedErr=function(){
             val old = tabs[0]
             container.removeAllViews()
             tabs.clear()
-            wipeIfIncognito(old)
-            thumbs.remove(old)
-            old.destroy()
-            cur = -1
-            newTab("home")
+            wipeIfIncognito(old); thumbs.remove(old); old.destroy()
+            cur = -1; newTab("home")
             return
         }
         val wasCur = (i == cur)
         val w = tabs[i]
         if (wasCur) container.removeAllViews()
         tabs.removeAt(i)
-        wipeIfIncognito(w)
-        thumbs.remove(w)
-        w.destroy()
+        wipeIfIncognito(w); thumbs.remove(w); w.destroy()
         if (wasCur) {
             switchTo(minOf(i, tabs.size - 1))
         } else {
