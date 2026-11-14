@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.vortex.browser"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.vortex.browser"
