@@ -62,10 +62,6 @@ class Tool(val kind: Int, val title: String, val sub: String, val action: () -> 
 
 class HistItem(val t: String, val u: String, val ms: Long)
 
-// Code-drawn icons
-// 0 back, 2 home, 3 tabs, 4 menu, 5 mic, 6 search, 7 close, 8 chevron, 9 plus,
-// 10 shield, 11 incognito, 13 screenshot, 14 desktop, 15 download, 16 share,
-// 19 code, 21 reload, 22 fill-arrow, 23 clock, 24 trash, 25 help
 class IconView(ctx: Context, private val kind: Int) : View(ctx) {
     var tint: Int = Color.parseColor("#D0D0E0")
     var count: Int = 1
@@ -109,141 +105,35 @@ class IconView(ctx: Context, private val kind: Int) : View(ctx) {
         p.strokeWidth = 2f
         path.reset()
         when (kind) {
-            0 -> {
-                path.moveTo(19f, 12f); path.lineTo(5f, 12f)
-                path.moveTo(12f, 5f); path.lineTo(5f, 12f); path.lineTo(12f, 19f)
-                c.drawPath(path, p)
-            }
-            2 -> {
-                path.moveTo(3f, 11f); path.lineTo(12f, 3f); path.lineTo(21f, 11f)
-                path.moveTo(5f, 9.5f); path.lineTo(5f, 21f); path.lineTo(19f, 21f); path.lineTo(19f, 9.5f)
-                path.moveTo(10f, 21f); path.lineTo(10f, 15f); path.lineTo(14f, 15f); path.lineTo(14f, 21f)
-                c.drawPath(path, p)
-            }
-            3 -> {
-                c.drawRoundRect(4f, 4f, 20f, 20f, 5f, 5f, p)
-                t.textSize = 10f
-                c.drawText(count.toString(), 12f, 15.5f, t)
-            }
-            4 -> {
-                c.drawCircle(12f, 5f, 1.9f, t)
-                c.drawCircle(12f, 12f, 1.9f, t)
-                c.drawCircle(12f, 19f, 1.9f, t)
-            }
-            5 -> {
-                c.drawRoundRect(9f, 2f, 15f, 14f, 3f, 3f, p)
-                rect.set(5f, 5f, 19f, 19f)
-                c.drawArc(rect, 0f, 180f, false, p)
-                c.drawLine(12f, 19f, 12f, 22f, p)
-                c.drawLine(8f, 22f, 16f, 22f, p)
-            }
-            6 -> {
-                c.drawCircle(10.5f, 10.5f, 6.5f, p)
-                c.drawLine(15.5f, 15.5f, 21f, 21f, p)
-            }
-            7 -> {
-                c.drawLine(6f, 6f, 18f, 18f, p)
-                c.drawLine(18f, 6f, 6f, 18f, p)
-            }
-            8 -> {
-                path.moveTo(9f, 5f); path.lineTo(16f, 12f); path.lineTo(9f, 19f)
-                c.drawPath(path, p)
-            }
-            9 -> {
-                c.drawLine(12f, 5f, 12f, 19f, p)
-                c.drawLine(5f, 12f, 19f, 12f, p)
-            }
-            10 -> {
-                path.moveTo(12f, 3f); path.lineTo(20f, 6f); path.lineTo(20f, 12f)
-                path.quadTo(20f, 18f, 12f, 21f)
-                path.quadTo(4f, 18f, 4f, 12f)
-                path.lineTo(4f, 6f); path.close()
-                c.drawPath(path, p)
-                c.drawLine(9f, 9f, 15f, 15f, p)
-            }
-            11 -> {
-                path.moveTo(5f, 11f); path.lineTo(8f, 4f); path.lineTo(16f, 4f); path.lineTo(19f, 11f)
-                c.drawPath(path, p)
-                c.drawLine(3f, 11f, 21f, 11f, p)
-                c.drawCircle(8f, 16.5f, 2.6f, p)
-                c.drawCircle(16f, 16.5f, 2.6f, p)
-                c.drawLine(10.6f, 16f, 13.4f, 16f, p)
-            }
-            13 -> {
-                path.moveTo(4f, 9f); path.lineTo(4f, 4f); path.lineTo(9f, 4f)
-                path.moveTo(15f, 4f); path.lineTo(20f, 4f); path.lineTo(20f, 9f)
-                path.moveTo(20f, 15f); path.lineTo(20f, 20f); path.lineTo(15f, 20f)
-                path.moveTo(9f, 20f); path.lineTo(4f, 20f); path.lineTo(4f, 15f)
-                c.drawPath(path, p)
-            }
-            14 -> {
-                c.drawRoundRect(3f, 4f, 21f, 16f, 2f, 2f, p)
-                c.drawLine(12f, 16f, 12f, 20f, p)
-                c.drawLine(8f, 20f, 16f, 20f, p)
-            }
-            15 -> {
-                c.drawLine(12f, 4f, 12f, 15f, p)
-                path.moveTo(7f, 10f); path.lineTo(12f, 15f); path.lineTo(17f, 10f)
-                c.drawPath(path, p)
-                c.drawLine(5f, 19f, 19f, 19f, p)
-            }
-            16 -> {
-                c.drawCircle(6f, 12f, 2.4f, p)
-                c.drawCircle(18f, 6f, 2.4f, p)
-                c.drawCircle(18f, 18f, 2.4f, p)
-                c.drawLine(8.2f, 11f, 15.8f, 7f, p)
-                c.drawLine(8.2f, 13f, 15.8f, 17f, p)
-            }
-            19 -> {
-                path.moveTo(8f, 7f); path.lineTo(3f, 12f); path.lineTo(8f, 17f)
-                path.moveTo(16f, 7f); path.lineTo(21f, 12f); path.lineTo(16f, 17f)
-                c.drawPath(path, p)
-                c.drawLine(14f, 5f, 10f, 19f, p)
-            }
-            21 -> {
-                rect.set(4.5f, 4.5f, 19.5f, 19.5f)
-                p.strokeWidth = 2f
-                c.drawArc(rect, 0f, 310f, false, p)
-                path.moveTo(15f, 16.5f)
-                path.lineTo(19.5f, 14.5f)
-                path.lineTo(17.5f, 10f)
-                c.drawPath(path, p)
-            }
-            22 -> {
-                path.moveTo(17f, 17f); path.lineTo(7f, 7f)
-                path.moveTo(7f, 15f); path.lineTo(7f, 7f); path.lineTo(15f, 7f)
-                c.drawPath(path, p)
-            }
-            23 -> {
-                c.drawCircle(12f, 12f, 9f, p)
-                path.moveTo(12f, 7f); path.lineTo(12f, 12f); path.lineTo(15.5f, 14f)
-                c.drawPath(path, p)
-            }
-            24 -> {
-                c.drawLine(4f, 7f, 20f, 7f, p)
-                path.moveTo(9f, 7f); path.lineTo(9f, 4f); path.lineTo(15f, 4f); path.lineTo(15f, 7f)
-                path.moveTo(6f, 7f); path.lineTo(7f, 20f); path.lineTo(17f, 20f); path.lineTo(18f, 7f)
-                path.moveTo(10f, 11f); path.lineTo(10f, 16f)
-                path.moveTo(14f, 11f); path.lineTo(14f, 16f)
-                c.drawPath(path, p)
-            }
-            25 -> {
-                c.drawCircle(12f, 12f, 9f, p)
-                t.textSize = 13f
-                c.drawText("?", 12f, 16.4f, t)
-            }
-            else -> {
-            }
+            0 -> { path.moveTo(19f, 12f); path.lineTo(5f, 12f); path.moveTo(12f, 5f); path.lineTo(5f, 12f); path.lineTo(12f, 19f); c.drawPath(path, p) }
+            2 -> { path.moveTo(3f, 11f); path.lineTo(12f, 3f); path.lineTo(21f, 11f); path.moveTo(5f, 9.5f); path.lineTo(5f, 21f); path.lineTo(19f, 21f); path.lineTo(19f, 9.5f); path.moveTo(10f, 21f); path.lineTo(10f, 15f); path.lineTo(14f, 15f); path.lineTo(14f, 21f); c.drawPath(path, p) }
+            3 -> { c.drawRoundRect(4f, 4f, 20f, 20f, 5f, 5f, p); t.textSize = 10f; c.drawText(count.toString(), 12f, 15.5f, t) }
+            4 -> { c.drawCircle(12f, 5f, 1.9f, t); c.drawCircle(12f, 12f, 1.9f, t); c.drawCircle(12f, 19f, 1.9f, t) }
+            5 -> { c.drawRoundRect(9f, 2f, 15f, 14f, 3f, 3f, p); rect.set(5f, 5f, 19f, 19f); c.drawArc(rect, 0f, 180f, false, p); c.drawLine(12f, 19f, 12f, 22f, p); c.drawLine(8f, 22f, 16f, 22f, p) }
+            6 -> { c.drawCircle(10.5f, 10.5f, 6.5f, p); c.drawLine(15.5f, 15.5f, 21f, 21f, p) }
+            7 -> { c.drawLine(6f, 6f, 18f, 18f, p); c.drawLine(18f, 6f, 6f, 18f, p) }
+            8 -> { path.moveTo(9f, 5f); path.lineTo(16f, 12f); path.lineTo(9f, 19f); c.drawPath(path, p) }
+            9 -> { c.drawLine(12f, 5f, 12f, 19f, p); c.drawLine(5f, 12f, 19f, 12f, p) }
+            10 -> { path.moveTo(12f, 3f); path.lineTo(20f, 6f); path.lineTo(20f, 12f); path.quadTo(20f, 18f, 12f, 21f); path.quadTo(4f, 18f, 4f, 12f); path.lineTo(4f, 6f); path.close(); c.drawPath(path, p); c.drawLine(9f, 9f, 15f, 15f, p) }
+            11 -> { path.moveTo(5f, 11f); path.lineTo(8f, 4f); path.lineTo(16f, 4f); path.lineTo(19f, 11f); c.drawPath(path, p); c.drawLine(3f, 11f, 21f, 11f, p); c.drawCircle(8f, 16.5f, 2.6f, p); c.drawCircle(16f, 16.5f, 2.6f, p); c.drawLine(10.6f, 16f, 13.4f, 16f, p) }
+            13 -> { path.moveTo(4f, 9f); path.lineTo(4f, 4f); path.lineTo(9f, 4f); path.moveTo(15f, 4f); path.lineTo(20f, 4f); path.lineTo(20f, 9f); path.moveTo(20f, 15f); path.lineTo(20f, 20f); path.lineTo(15f, 20f); path.moveTo(9f, 20f); path.lineTo(4f, 20f); path.lineTo(4f, 15f); c.drawPath(path, p) }
+            14 -> { c.drawRoundRect(3f, 4f, 21f, 16f, 2f, 2f, p); c.drawLine(12f, 16f, 12f, 20f, p); c.drawLine(8f, 20f, 16f, 20f, p) }
+            15 -> { c.drawLine(12f, 4f, 12f, 15f, p); path.moveTo(7f, 10f); path.lineTo(12f, 15f); path.lineTo(17f, 10f); c.drawPath(path, p); c.drawLine(5f, 19f, 19f, 19f, p) }
+            16 -> { c.drawCircle(6f, 12f, 2.4f, p); c.drawCircle(18f, 6f, 2.4f, p); c.drawCircle(18f, 18f, 2.4f, p); c.drawLine(8.2f, 11f, 15.8f, 7f, p); c.drawLine(8.2f, 13f, 15.8f, 17f, p) }
+            19 -> { path.moveTo(8f, 7f); path.lineTo(3f, 12f); path.lineTo(8f, 17f); path.moveTo(16f, 7f); path.lineTo(21f, 12f); path.lineTo(16f, 17f); c.drawPath(path, p); c.drawLine(14f, 5f, 10f, 19f, p) }
+            21 -> { rect.set(4.5f, 4.5f, 19.5f, 19.5f); p.strokeWidth = 2f; c.drawArc(rect, 0f, 310f, false, p); path.moveTo(15f, 16.5f); path.lineTo(19.5f, 14.5f); path.lineTo(17.5f, 10f); c.drawPath(path, p) }
+            22 -> { path.moveTo(17f, 17f); path.lineTo(7f, 7f); path.moveTo(7f, 15f); path.lineTo(7f, 7f); path.lineTo(15f, 7f); c.drawPath(path, p) }
+            23 -> { c.drawCircle(12f, 12f, 9f, p); path.moveTo(12f, 7f); path.lineTo(12f, 12f); path.lineTo(15.5f, 14f); c.drawPath(path, p) }
+            24 -> { c.drawLine(4f, 7f, 20f, 7f, p); path.moveTo(9f, 7f); path.lineTo(9f, 4f); path.lineTo(15f, 4f); path.lineTo(15f, 7f); path.moveTo(6f, 7f); path.lineTo(7f, 20f); path.lineTo(17f, 20f); path.lineTo(18f, 7f); path.moveTo(10f, 11f); path.lineTo(10f, 16f); path.moveTo(14f, 11f); path.lineTo(14f, 16f); c.drawPath(path, p) }
+            25 -> { c.drawCircle(12f, 12f, 9f, p); t.textSize = 13f; c.drawText("?", 12f, 16.4f, t) }
         }
         c.restore()
     }
 }
 
-// Pull-down-to-refresh (no AndroidX needed)
 class PullLayout(ctx: Context) : FrameLayout(ctx) {
     var canPull: () -> Boolean = { false }
     var onRefresh: () -> Unit = {}
-
     private val density = ctx.resources.displayMetrics.density
     private val ind = IconView(ctx, 21)
     private val slop = ViewConfiguration.get(ctx).scaledTouchSlop
@@ -278,12 +168,7 @@ class PullLayout(ctx: Context) : FrameLayout(ctx) {
     override fun onInterceptTouchEvent(e: MotionEvent): Boolean {
         if (refreshing) return false
         when (e.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                startX = e.x
-                startY = e.y
-                atTop = canPull()
-                pulling = false
-            }
+            MotionEvent.ACTION_DOWN -> { startX = e.x; startY = e.y; atTop = canPull(); pulling = false }
             MotionEvent.ACTION_MOVE -> {
                 val dy = e.y - startY
                 val dx = e.x - startX
@@ -355,10 +240,13 @@ class MainActivity : Activity() {
     private lateinit var homeBtn: IconView
     private lateinit var plusBtn: IconView
     private lateinit var tabsBtn: IconView
+    private lateinit var toolbar: LinearLayout
     private lateinit var prefs: SharedPreferences
+
     private val rules = mutableListOf<Rule>()
     private val webHist = mutableListOf<HistItem>()
     private val searchHist = mutableListOf<String>()
+    private val downloadHist = mutableListOf<DownloadItem>()
     private val dnsCache = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
 
     @Volatile private var suggestToken = 0
@@ -374,11 +262,8 @@ class MainActivity : Activity() {
     private var desktop = false
     private var engineIdx = 0
     private var feedIdx = 0
-
-    // home page greeting + clock: false kore dile hide
     private val showGreeting = true
 
-    private val downloadHist = mutableListOf<DownloadItem>()
     private val feedbackUrl = "https://www.facebook.com/share/1CSSRcHBTv/"
     private val homeUrl = "https://vortex.local/"
     private val dohUrl = "https://dns.adguard-dns.com/dns-query"
@@ -389,7 +274,6 @@ class MainActivity : Activity() {
         Pair("Bing", "https://www.bing.com/search?q=")
     )
 
-    // Discover feed (Google News)
     private val feeds = listOf(
         Pair("Bangla", "https://news.google.com/rss?hl=bn&gl=BD&ceid=BD:bn"),
         Pair("English", "https://news.google.com/rss?hl=en-BD&gl=BD&ceid=BD:en")
@@ -407,8 +291,7 @@ class MainActivity : Activity() {
         "adservice.google.com", "adnxs.com", "taboola.com", "outbrain.com",
         "popads.net", "propellerads.com", "adsterra.com", "exoclick.com"
     )
-    private val desktopUa =
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    private val desktopUa = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -417,6 +300,7 @@ class MainActivity : Activity() {
         feedIdx = prefs.getInt("feed", 0).coerceIn(0, feeds.size - 1)
         loadRules()
         loadHistory()
+        loadDownloads()
         window.statusBarColor = Color.parseColor("#120A2B")
         window.navigationBarColor = Color.parseColor("#0E0824")
         window.setBackgroundDrawable(bgGradient())
@@ -430,8 +314,8 @@ class MainActivity : Activity() {
             closeOverlay()
             return
         }
-        val w = tabs[cur]
-        if (w.canGoBack()) w.goBack()
+        val w = tabs.getOrNull(cur)
+        if (w != null && w.canGoBack()) w.goBack()
         else if (tabs.size > 1) closeTabAt(cur)
         else finish()
     }
@@ -447,9 +331,7 @@ class MainActivity : Activity() {
         if (requestCode == 78) {
             val cb = fileCallback
             fileCallback = null
-            if (cb != null) {
-                cb.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data))
-            }
+            cb?.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data))
         }
     }
 
@@ -491,15 +373,12 @@ class MainActivity : Activity() {
     private fun handleWebPermission(req: PermissionRequest) {
         val needCam = req.resources.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE)
         val needMic = req.resources.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE)
-        if (!needCam && !needMic) {
-            req.deny()
-            return
-        }
+        if (!needCam && !needMic) { req.deny(); return }
         val what = if (needCam && needMic) "camera and microphone" else if (needCam) "camera" else "microphone"
         val host = req.origin.host ?: "This site"
         AlertDialog.Builder(this)
             .setTitle("Permission request")
-            .setMessage(host + " wants to use your " + what + ".")
+            .setMessage("$host wants to use your $what.")
             .setPositiveButton("Allow") { _, _ ->
                 val need = ArrayList<String>()
                 if (needCam && !hasPerm(Manifest.permission.CAMERA)) need.add(Manifest.permission.CAMERA)
@@ -517,7 +396,28 @@ class MainActivity : Activity() {
             .show()
     }
 
-        private fun loadDownloads() {
+    private fun handleGeo(origin: String, cb: GeolocationPermissions.Callback) {
+        val host = hostOf(origin) ?: origin
+        AlertDialog.Builder(this)
+            .setTitle("Location request")
+            .setMessage("$host wants to know your location.")
+            .setPositiveButton("Allow") { _, _ ->
+                if (hasPerm(Manifest.permission.ACCESS_FINE_LOCATION)) {
+                    cb.invoke(origin, true, false)
+                } else {
+                    pendingGeoCb = cb
+                    pendingGeoOrigin = origin
+                    requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION), 92)
+                }
+            }
+            .setNegativeButton("Block") { _, _ -> cb.invoke(origin, false, false) }
+            .setOnCancelListener { cb.invoke(origin, false, false) }
+            .show()
+    }
+
+    // ---------- Download History Logic ----------
+
+    private fun loadDownloads() {
         try {
             val raw = prefs.getString("dl_hist", "[]") ?: "[]"
             val a = JSONArray(raw)
@@ -540,15 +440,14 @@ class MainActivity : Activity() {
         }
         prefs.edit().putString("dl_hist", a.toString()).apply()
     }
-        private fun showDownloadsPage() {
-        var currentFilter = 0 // 0: All, 1: Videos, 2: Audio, 3: Other
-        
+
+    private fun showDownloadsPage() {
+        var currentFilter = 0
         val page = LinearLayout(this)
         page.orientation = LinearLayout.VERTICAL
         page.background = bgGradient()
         page.setPadding(dp(12), dp(20), dp(12), 0)
 
-        // Top Header
         val head = LinearLayout(this)
         head.orientation = LinearLayout.HORIZONTAL
         head.gravity = Gravity.CENTER_VERTICAL
@@ -568,7 +467,6 @@ class MainActivity : Activity() {
         head.addView(trash, lp(dp(40), dp(40)))
         head.addView(close, lp(dp(40), dp(40)))
 
-        // Storage Usage Bar (Chrome style)
         val storageLayout = LinearLayout(this)
         storageLayout.orientation = LinearLayout.VERTICAL
         storageLayout.setPadding(dp(6), dp(10), dp(6), dp(10))
@@ -588,12 +486,10 @@ class MainActivity : Activity() {
         fillDrawable.cornerRadius = dp(4).toFloat()
         fillDrawable.setColor(cAccent)
         fillBar.background = fillDrawable
-        barBg.addView(fillBar, FrameLayout.LayoutParams((dp(120)), dp(6)))
-        
+        barBg.addView(fillBar, FrameLayout.LayoutParams(dp(120), dp(6)))
         storageLayout.addView(storageText)
         storageLayout.addView(barBg, lp(mp, dp(6)).apply { topMargin = dp(6) })
 
-        // Filter Chips Row (All, Videos, Audio, Other)
         val chipsRow = LinearLayout(this)
         chipsRow.orientation = LinearLayout.HORIZONTAL
         chipsRow.setPadding(dp(2), dp(8), dp(2), dp(12))
@@ -627,20 +523,15 @@ class MainActivity : Activity() {
         fun refreshList() {
             list.removeAllViews()
             chipsRow.removeAllViews()
-
             val filters = listOf("All", "Videos", "Audio", "Other")
             for ((idx, fName) in filters.withIndex()) {
                 val c = chip(fName, currentFilter == idx)
                 val clp = lp(wc, wc)
                 clp.rightMargin = dp(8)
-                c.setOnClickListener {
-                    currentFilter = idx
-                    refreshList()
-                }
+                c.setOnClickListener { currentFilter = idx; refreshList() }
                 chipsRow.addView(c, clp)
             }
 
-            // Filter items based on extension
             val filtered = downloadHist.filter { item ->
                 val name = item.name.lowercase()
                 when (currentFilter) {
@@ -668,7 +559,6 @@ class MainActivity : Activity() {
                 row.gravity = Gravity.CENTER_VERTICAL
                 row.setPadding(dp(6), dp(10), dp(6), dp(10))
 
-                // File type icon / badge
                 val iconBox = LinearLayout(this)
                 iconBox.gravity = Gravity.CENTER
                 val ig = GradientDrawable()
@@ -682,7 +572,6 @@ class MainActivity : Activity() {
                 fileIcon.isClickable = false
                 iconBox.addView(fileIcon, lp(dp(24), dp(24)))
 
-                // Details
                 val details = LinearLayout(this)
                 details.orientation = LinearLayout.VERTICAL
                 val t1 = TextView(this)
@@ -696,11 +585,9 @@ class MainActivity : Activity() {
                 t2.text = fmt.format(Date(d.ms)) + "  ·  Vortex Download"
                 t2.textSize = 12f
                 t2.setTextColor(cGray)
-
                 details.addView(t1)
                 details.addView(t2)
 
-                // Delete 3-dot or delete button
                 val delBtn = IconView(this, 7)
                 delBtn.tint = cGray
                 delBtn.ratio = 0.45f
@@ -717,9 +604,7 @@ class MainActivity : Activity() {
                 row.addView(details, lp(0, wc, 1f))
                 row.addView(delBtn, lp(dp(36), dp(36)))
 
-                row.setOnClickListener {
-                    toast("Saved in " + d.path)
-                }
+                row.setOnClickListener { toast("Saved in " + d.path) }
                 list.addView(row)
             }
         }
@@ -739,7 +624,6 @@ class MainActivity : Activity() {
         }
 
         refreshList()
-
         page.addView(head)
         page.addView(storageLayout)
         page.addView(chipsRow)
@@ -747,45 +631,16 @@ class MainActivity : Activity() {
         openOverlay(page)
     }
 
-    
-    private fun handleGeo(origin: String, cb: GeolocationPermissions.Callback) {
-        val host = hostOf(origin) ?: origin
-        AlertDialog.Builder(this)
-            .setTitle("Location request")
-            .setMessage(host + " wants to know your location.")
-            .setPositiveButton("Allow") { _, _ ->
-                if (hasPerm(Manifest.permission.ACCESS_FINE_LOCATION)) {
-                    cb.invoke(origin, true, false)
-                } else {
-                    pendingGeoCb = cb
-                    pendingGeoOrigin = origin
-                    requestPermissions(
-                        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
-                        92
-                    )
-                }
-            }
-            .setNegativeButton("Block") { _, _ -> cb.invoke(origin, false, false) }
-            .setOnCancelListener { cb.invoke(origin, false, false) }
-            .show()
-    }
-
-    // ---------- helpers ----------
+    // ---------- Helpers ----------
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
-
     private fun lp(w: Int, h: Int, weight: Float = 0f) = LinearLayout.LayoutParams(w, h, weight)
-
     private fun cellLp(): LinearLayout.LayoutParams {
         val l = LinearLayout.LayoutParams(0, wc, 1f)
         l.setMargins(dp(6), dp(6), dp(6), dp(6))
         return l
     }
-
-    private fun toast(m: String) {
-        Toast.makeText(this, m, Toast.LENGTH_SHORT).show()
-    }
-
+    private fun toast(m: String) = Toast.makeText(this, m, Toast.LENGTH_SHORT).show()
     private fun onOff(b: Boolean) = if (b) "ON" else "OFF"
 
     private fun bgGradient() = GradientDrawable(
@@ -793,7 +648,6 @@ class MainActivity : Activity() {
         intArrayOf(Color.parseColor("#150B33"), Color.parseColor("#07070C"), Color.parseColor("#0E0824"))
     )
 
-    // Removed heavy blur theme setup (`backdrop-filter`) to fix UI lag and performance issues.
     private fun glass(radius: Int, top: Int = 0x2E, bottom: Int = 0x12): GradientDrawable {
         val g = GradientDrawable(
             GradientDrawable.Orientation.TOP_BOTTOM,
@@ -809,8 +663,7 @@ class MainActivity : Activity() {
         v.setOnTouchListener { view, e ->
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> view.animate().scaleX(0.96f).scaleY(0.96f).setDuration(90).start()
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
-                    view.animate().scaleX(1f).scaleY(1f).setDuration(160).start()
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> view.animate().scaleX(1f).scaleY(1f).setDuration(160).start()
             }
             false
         }
@@ -820,9 +673,7 @@ class MainActivity : Activity() {
         for ((i, v) in views.withIndex()) {
             v.alpha = 0f
             v.translationY = dp(18).toFloat()
-            v.animate().alpha(1f).translationY(0f)
-                .setStartDelay(50L + i * 30L).setDuration(260)
-                .setInterpolator(DecelerateInterpolator(1.6f)).start()
+            v.animate().alpha(1f).translationY(0f).setStartDelay(50L + i * 30L).setDuration(260).setInterpolator(DecelerateInterpolator(1.6f)).start()
         }
     }
 
@@ -830,8 +681,7 @@ class MainActivity : Activity() {
         v.alpha = 0f
         v.scaleX = 0.94f
         v.scaleY = 0.94f
-        v.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(280)
-            .setInterpolator(DecelerateInterpolator(1.5f)).start()
+        v.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(280).setInterpolator(DecelerateInterpolator(1.5f)).start()
     }
 
     private fun showKeyboard(v: View) {
@@ -851,21 +701,18 @@ class MainActivity : Activity() {
         val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
         i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
         i.putExtra(RecognizerIntent.EXTRA_PROMPT, "Search with Vortex")
-        try {
-            startActivityForResult(i, 77)
-        } catch (e: Exception) {
-            toast("Voice search not available")
-        }
+        try { startActivityForResult(i, 77) } catch (e: Exception) { toast("Voice search not available") }
     }
 
-    // ---------- UI ----------
+    // ---------- UI Builder with Hide-on-Scroll Navigation ----------
 
+    @SuppressLint("ClickableViewAccessibility")
     private fun buildUi() {
         val frame = FrameLayout(this)
         val main = LinearLayout(this)
         main.orientation = LinearLayout.VERTICAL
 
-        val toolbar = LinearLayout(this)
+        toolbar = LinearLayout(this)
         toolbar.orientation = LinearLayout.HORIZONTAL
         toolbar.gravity = Gravity.CENTER_VERTICAL
         toolbar.setPadding(dp(6), dp(6), dp(6), dp(6))
@@ -898,7 +745,6 @@ class MainActivity : Activity() {
         pill.addView(mic, lp(dp(40), dp(40)))
 
         spacer = View(this)
-
         plusBtn = IconView(this, 9)
         plusBtn.ratio = 0.6f
         plusBtn.setOnClickListener { newTab("home") }
@@ -955,6 +801,25 @@ class MainActivity : Activity() {
         setContentView(frame)
     }
 
+    private var lastScrollY = 0
+    private var isToolbarHidden = false
+
+    private fun handleScroll(scrollY: Int) {
+        val dy = scrollY - lastScrollY
+        if (Math.abs(dy) > 10) {
+            if (dy > 0 && !isToolbarHidden && scrollY > 100) {
+                // Scroll down -> Hide toolbar with smooth animation
+                isToolbarHidden = true
+                toolbar.animate().translationY(-toolbar.height.toFloat()).alpha(0f).setDuration(200).start()
+            } else if (dy < 0 && isToolbarHidden) {
+                // Scroll up -> Show toolbar with smooth animation
+                isToolbarHidden = false
+                toolbar.animate().translationY(0f).alpha(1f).setDuration(200).start()
+            }
+            lastScrollY = scrollY
+        }
+    }
+
     private fun updateToolbar(u: String?) {
         val home = shown(u).isEmpty()
         val wasHidden = pill.visibility != View.VISIBLE
@@ -979,8 +844,7 @@ class MainActivity : Activity() {
         v.translationY = dp(36).toFloat()
         v.scaleX = 0.97f
         v.scaleY = 0.97f
-        v.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f)
-            .setDuration(260).setInterpolator(DecelerateInterpolator(1.6f)).start()
+        v.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f).setDuration(260).setInterpolator(DecelerateInterpolator(1.6f)).start()
     }
 
     private fun closeOverlay() {
@@ -988,19 +852,11 @@ class MainActivity : Activity() {
         if (overlay.visibility != View.VISIBLE) return
         val gen = ++overlayGen
         val child = overlay.getChildAt(0)
-        if (child == null) {
-            overlay.visibility = View.GONE
-            return
-        }
+        if (child == null) { overlay.visibility = View.GONE; return }
         child.animate().alpha(0f).translationY(dp(24).toFloat()).setDuration(170).withEndAction {
-            if (gen == overlayGen) {
-                overlay.visibility = View.GONE
-                overlay.removeAllViews()
-            }
+            if (gen == overlayGen) { overlay.visibility = View.GONE; overlay.removeAllViews() }
         }.start()
     }
-
-    // ---------- URL helpers ----------
 
     private fun looksLikeUrl(t: String): Boolean =
         t.startsWith("http://") || t.startsWith("https://") || (!t.contains(" ") && t.contains("."))
@@ -1048,7 +904,6 @@ class MainActivity : Activity() {
         startActivity(Intent.createChooser(i, "Share"))
     }
 
-    // vortex:// links from the home page
     private fun handleVortex(u: String) {
         val uri = Uri.parse(u)
         when (uri.host) {
@@ -1076,17 +931,14 @@ class MainActivity : Activity() {
             val raw2 = prefs.getString("search_hist", "[]") ?: "[]"
             val s = JSONArray(raw2)
             for (i in 0 until s.length()) searchHist.add(s.getString(i))
-        } catch (e: Exception) {
-        }
+        } catch (e: Exception) {}
     }
 
     private fun saveWebHist() {
         val a = JSONArray()
         for (h in webHist) {
             val o = JSONObject()
-            o.put("t", h.t)
-            o.put("u", h.u)
-            o.put("ms", h.ms)
+            o.put("t", h.t); o.put("u", h.u); o.put("ms", h.ms)
             a.put(o)
         }
         prefs.edit().putString("web_hist", a.toString()).apply()
@@ -1120,14 +972,8 @@ class MainActivity : Activity() {
         AlertDialog.Builder(this)
             .setTitle("Clear history")
             .setItems(opts) { _, i ->
-                if (i == 0 || i == 2) {
-                    webHist.clear()
-                    saveWebHist()
-                }
-                if (i == 1 || i == 2) {
-                    searchHist.clear()
-                    saveSearchHist()
-                }
+                if (i == 0 || i == 2) { webHist.clear(); saveWebHist() }
+                if (i == 1 || i == 2) { searchHist.clear(); saveSearchHist() }
                 toast("History cleared")
                 after?.invoke()
             }
@@ -1143,19 +989,11 @@ class MainActivity : Activity() {
         val col = LinearLayout(this)
         col.orientation = LinearLayout.VERTICAL
         val t1 = TextView(this)
-        t1.text = title
-        t1.textSize = 15f
-        t1.setTextColor(Color.WHITE)
-        t1.maxLines = 1
-        t1.ellipsize = TextUtils.TruncateAt.END
+        t1.text = title; t1.textSize = 15f; t1.setTextColor(Color.WHITE); t1.maxLines = 1; t1.ellipsize = TextUtils.TruncateAt.END
         col.addView(t1)
         if (sub.isNotEmpty()) {
             val t2 = TextView(this)
-            t2.text = sub
-            t2.textSize = 12f
-            t2.setTextColor(cGray)
-            t2.maxLines = 1
-            t2.ellipsize = TextUtils.TruncateAt.END
+            t2.text = sub; t2.textSize = 12f; t2.setTextColor(cGray); t2.maxLines = 1; t2.ellipsize = TextUtils.TruncateAt.END
             col.addView(t2)
         }
         val l0 = lp(dp(40), dp(40))
@@ -1163,19 +1001,13 @@ class MainActivity : Activity() {
         row.addView(lead, l0)
         row.addView(col, lp(0, wc, 1f))
         row.setOnClickListener { click() }
-        row.setOnLongClickListener {
-            onLong()
-            true
-        }
+        row.setOnLongClickListener { onLong(); true }
         return row
     }
 
     private fun avatar(letter: String): TextView {
         val tv = TextView(this)
-        tv.text = letter
-        tv.gravity = Gravity.CENTER
-        tv.textSize = 16f
-        tv.setTextColor(cAccent)
+        tv.text = letter; tv.gravity = Gravity.CENTER; tv.textSize = 16f; tv.setTextColor(cAccent)
         val g = GradientDrawable()
         g.shape = GradientDrawable.OVAL
         g.setColor(Color.argb(0x26, 255, 255, 255))
@@ -1199,52 +1031,27 @@ class MainActivity : Activity() {
         if (searches) {
             for (s in searchHist.toList()) {
                 val ic = IconView(this, 23)
-                ic.tint = cGray
-                ic.isClickable = false
-                list.addView(histRow(ic, s, "", {
-                    closeOverlay()
-                    submitQuery(s)
-                }, {
-                    searchHist.remove(s)
-                    saveSearchHist()
-                    toast("Removed")
-                    onChange()
-                }))
+                ic.tint = cGray; ic.isClickable = false
+                list.addView(histRow(ic, s, "", { closeOverlay(); submitQuery(s) }, { searchHist.remove(s); saveSearchHist(); toast("Removed"); onChange() }))
             }
         } else {
             val fmt = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault())
             for (h in webHist.take(200).toList()) {
                 val host = hostOf(h.u) ?: h.u
                 val letter = host.removePrefix("www.").take(1).uppercase()
-                list.addView(histRow(avatar(letter), h.t, fmt.format(Date(h.ms)) + "  |  " + host, {
-                    closeOverlay()
-                    tabs[cur].loadUrl(h.u)
-                }, {
-                    webHist.remove(h)
-                    saveWebHist()
-                    toast("Removed")
-                    onChange()
-                }))
+                list.addView(histRow(avatar(letter), h.t, fmt.format(Date(h.ms)) + "  |  " + host, { closeOverlay(); tabs[cur].loadUrl(h.u) }, { webHist.remove(h); saveWebHist(); toast("Removed"); onChange() }))
             }
         }
     }
 
     private fun styleTab(tv: TextView, selected: Boolean) {
-        if (selected) {
-            tv.background = glass(18, 0x40, 0x1C)
-            tv.setTextColor(cAccent)
-        } else {
-            tv.background = null
-            tv.setTextColor(cGray)
-        }
+        if (selected) { tv.background = glass(18, 0x40, 0x1C); tv.setTextColor(cAccent) }
+        else { tv.background = null; tv.setTextColor(cGray) }
     }
 
     private fun pillTab(text: String): TextView {
         val tv = TextView(this)
-        tv.text = text
-        tv.textSize = 14f
-        tv.gravity = Gravity.CENTER
-        tv.setPadding(0, dp(10), 0, dp(10))
+        tv.text = text; tv.textSize = 14f; tv.gravity = Gravity.CENTER; tv.setPadding(0, dp(10), 0, dp(10))
         return tv
     }
 
@@ -1259,10 +1066,7 @@ class MainActivity : Activity() {
         head.orientation = LinearLayout.HORIZONTAL
         head.gravity = Gravity.CENTER_VERTICAL
         val title = TextView(this)
-        title.text = "History"
-        title.textSize = 22f
-        title.setTextColor(Color.WHITE)
-        title.setPadding(dp(6), 0, 0, 0)
+        title.text = "History"; title.textSize = 22f; title.setTextColor(Color.WHITE); title.setPadding(dp(6), 0, 0, 0)
         val trash = IconView(this, 24)
         val close = IconView(this, 7)
         close.setOnClickListener { closeOverlay() }
@@ -1289,14 +1093,8 @@ class MainActivity : Activity() {
             styleTab(tabW, !mode)
             styleTab(tabS, mode)
         }
-        tabW.setOnClickListener {
-            mode = false
-            refresh()
-        }
-        tabS.setOnClickListener {
-            mode = true
-            refresh()
-        }
+        tabW.setOnClickListener { mode = false; refresh() }
+        tabS.setOnClickListener { mode = true; refresh() }
         trash.setOnClickListener { showClearDialog { refresh() } }
         refresh()
 
@@ -1306,8 +1104,6 @@ class MainActivity : Activity() {
         openOverlay(page)
     }
 
-    // ---------- Search overlay (history + suggestions) ----------
-
     private fun fetchSuggest(q: String, cb: (List<String>) -> Unit) {
         val t = q.trim()
         val token = ++suggestToken
@@ -1316,17 +1112,14 @@ class MainActivity : Activity() {
             try {
                 Thread.sleep(160)
                 if (token != suggestToken) return@Thread
-                val con = URL("https://suggestqueries.google.com/complete/search?client=firefox&q=" + Uri.encode(t))
-                    .openConnection() as HttpURLConnection
-                con.connectTimeout = 3000
-                con.readTimeout = 3000
+                val con = URL("https://suggestqueries.google.com/complete/search?client=firefox&q=" + Uri.encode(t)).openConnection() as HttpURLConnection
+                con.connectTimeout = 3000; con.readTimeout = 3000
                 val txt = con.inputStream.use { String(it.readBytes(), Charsets.UTF_8) }
                 val arr = JSONArray(txt).getJSONArray(1)
                 val out = ArrayList<String>()
                 for (i in 0 until arr.length()) out.add(arr.getString(i))
                 if (token == suggestToken) runOnUiThread { cb(out) }
-            } catch (e: Exception) {
-            }
+            } catch (e: Exception) {}
         }.start()
     }
 
@@ -1336,29 +1129,16 @@ class MainActivity : Activity() {
         row.gravity = Gravity.CENTER_VERTICAL
         row.setPadding(dp(6), 0, dp(6), 0)
         val ic = IconView(this, kind)
-        ic.tint = cGray
-        ic.ratio = 0.45f
-        ic.isClickable = false
+        ic.tint = cGray; ic.ratio = 0.45f; ic.isClickable = false
         val tv = TextView(this)
-        tv.text = text
-        tv.textSize = 16f
-        tv.setTextColor(Color.WHITE)
-        tv.maxLines = 1
-        tv.ellipsize = TextUtils.TruncateAt.END
+        tv.text = text; tv.textSize = 16f; tv.setTextColor(Color.WHITE); tv.maxLines = 1; tv.ellipsize = TextUtils.TruncateAt.END
         val fill = IconView(this, 22)
-        fill.tint = cGray
-        fill.ratio = 0.45f
-        fill.setOnClickListener {
-            et.setText(text)
-            et.setSelection(text.length)
-        }
+        fill.tint = cGray; fill.ratio = 0.45f
+        fill.setOnClickListener { et.setText(text); et.setSelection(text.length) }
         row.addView(ic, lp(dp(40), dp(48)))
         row.addView(tv, lp(0, wc, 1f))
         row.addView(fill, lp(dp(44), dp(48)))
-        row.setOnClickListener {
-            closeOverlay()
-            submitQuery(text)
-        }
+        row.setOnClickListener { closeOverlay(); submitQuery(text) }
         if (kind == 23) {
             row.setOnLongClickListener {
                 searchHist.removeAll { it.equals(text, true) }
@@ -1417,15 +1197,11 @@ class MainActivity : Activity() {
         et.imeOptions = EditorInfo.IME_ACTION_GO
 
         val clear = IconView(this, 7)
-        clear.ratio = 0.45f
-        clear.tint = cGray
+        clear.ratio = 0.45f; clear.tint = cGray
         clear.setOnClickListener { et.setText("") }
         val mic = IconView(this, 5)
         mic.tint = cAccent
-        mic.setOnClickListener {
-            closeOverlay()
-            startVoice()
-        }
+        mic.setOnClickListener { closeOverlay(); startVoice() }
 
         box.addView(et, lp(0, dp(46), 1f))
         box.addView(clear, lp(dp(36), dp(46)))
@@ -1450,50 +1226,23 @@ class MainActivity : Activity() {
             override fun afterTextChanged(s: Editable?) {
                 val q = s?.toString() ?: ""
                 fillSuggestions(list, et, emptyList())
-                fetchSuggest(q) { live ->
-                    if (et.text.toString() == q) fillSuggestions(list, et, live)
-                }
+                fetchSuggest(q) { live -> if (et.text.toString() == q) fillSuggestions(list, et, live) }
             }
         })
         et.setOnEditorActionListener { _, actionId, event ->
             if (actionId == EditorInfo.IME_ACTION_GO || event?.keyCode == KeyEvent.KEYCODE_ENTER) {
-                val q = et.text.toString()
-                closeOverlay()
-                submitQuery(q)
-                true
+                val q = et.text.toString(); closeOverlay(); submitQuery(q); true
             } else false
         }
-            w.setDownloadListener { dlUrl, userAgent, contentDisposition, mime, _ ->
-            val fileName = URLUtil.guessFileName(dlUrl, contentDisposition, mime)
-            val req = DownloadManager.Request(Uri.parse(dlUrl))
-            req.setMimeType(mime)
-            req.addRequestHeader("User-Agent", userAgent)
-            req.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            req.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
-            
-            val dm = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
-            dm.enqueue(req)
-
-            // Save to internal history list
-            downloadHist.add(0, DownloadItem(fileName, dlUrl, "Downloads/Vortex/$fileName", System.currentTimeMillis()))
-            saveDownloads()
-
-            toast("Downloading $fileName...")
-        }
-
-
         openOverlay(page)
         et.selectAll()
         showKeyboard(et)
     }
 
-    // ---------- Home page ----------
-
     private fun showHome(w: WebView) {
         w.loadDataWithBaseURL(homeUrl, homeHtml(), "text/html", "utf-8", homeUrl)
     }
 
-    // Removed backdrop-filter blur from the homepage CSS to boost rendering speed and eliminate lag.
     private fun homeHtml(): String {
         val greetDiv = if (showGreeting) "<div id=\"clock\" class=\"a2\"></div>" else ""
         return """
@@ -1629,8 +1378,6 @@ window.vxFeedErr=function(){
 """
     }
 
-    // ---------- Discover feed (Google News RSS) ----------
-
     private fun feedJs(js: String) {
         for (w in tabs) {
             if (shown(w.url).isEmpty()) w.evaluateJavascript(js, null)
@@ -1654,8 +1401,7 @@ window.vxFeedErr=function(){
             runOnUiThread {
                 feedBusy = false
                 if (json != null) {
-                    prefs.edit().putString("feed_json" + idx, json)
-                        .putLong("feed_time" + idx, System.currentTimeMillis()).apply()
+                    prefs.edit().putString("feed_json" + idx, json).putLong("feed_time" + idx, System.currentTimeMillis()).apply()
                     if (idx == feedIdx) pushFeed(json)
                 } else {
                     feedJs("window.vxFeedErr&&window.vxFeedErr()")
@@ -1675,17 +1421,11 @@ window.vxFeedErr=function(){
     private fun fetchFeed(idx: Int): String? {
         return try {
             val con = URL(feeds[idx].second).openConnection() as HttpURLConnection
-            con.connectTimeout = 6000
-            con.readTimeout = 8000
-            con.setRequestProperty(
-                "User-Agent",
-                "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36"
-            )
+            con.connectTimeout = 6000; con.readTimeout = 8000
+            con.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36")
             val data = con.inputStream.use { it.readBytes() }
             parseRss(data)
-        } catch (e: Exception) {
-            null
-        }
+        } catch (e: Exception) { null }
     }
 
     private fun parseRss(data: ByteArray): String? {
@@ -1693,55 +1433,30 @@ window.vxFeedErr=function(){
         parser.setInput(ByteArrayInputStream(data), "UTF-8")
         val arr = JSONArray()
         val fmt = SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz", Locale.ENGLISH)
-        var inItem = false
-        var title = ""
-        var link = ""
-        var date = ""
-        var src = ""
+        var inItem = false; var title = ""; var link = ""; var date = ""; var src = ""
         var ev = parser.eventType
         while (ev != XmlPullParser.END_DOCUMENT && arr.length() < 14) {
             if (ev == XmlPullParser.START_TAG) {
                 when (parser.name) {
-                    "item" -> {
-                        inItem = true
-                        title = ""
-                        link = ""
-                        date = ""
-                        src = ""
-                    }
-                    "title" -> {
-                        if (inItem) title = parser.nextText()
-                    }
-                    "link" -> {
-                        if (inItem) link = parser.nextText()
-                    }
-                    "pubDate" -> {
-                        if (inItem) date = parser.nextText()
-                    }
-                    "source" -> {
-                        if (inItem) src = parser.nextText()
-                    }
+                    "item" -> { inItem = true; title = ""; link = ""; date = ""; src = "" }
+                    "title" -> { if (inItem) title = parser.nextText() }
+                    "link" -> { if (inItem) link = parser.nextText() }
+                    "pubDate" -> { if (inItem) date = parser.nextText() }
+                    "source" -> { if (inItem) src = parser.nextText() }
                 }
             } else if (ev == XmlPullParser.END_TAG && parser.name == "item") {
                 inItem = false
-                var t = title
-                var s = src
+                var t = title; var s = src
                 val cut = t.lastIndexOf(" - ")
                 if (cut > 0) {
                     if (s.isEmpty()) s = t.substring(cut + 3)
                     t = t.substring(0, cut)
                 }
                 var ms = 0L
-                try {
-                    ms = fmt.parse(date)?.time ?: 0L
-                } catch (e: Exception) {
-                }
+                try { ms = fmt.parse(date)?.time ?: 0L } catch (e: Exception) {}
                 if (t.isNotEmpty() && link.isNotEmpty()) {
                     val o = JSONObject()
-                    o.put("t", t)
-                    o.put("s", s)
-                    o.put("l", link)
-                    o.put("m", ms)
+                    o.put("t", t); o.put("s", s); o.put("l", link); o.put("m", ms)
                     arr.put(o)
                 }
             }
@@ -1749,8 +1464,6 @@ window.vxFeedErr=function(){
         }
         return if (arr.length() > 0) arr.toString() else null
     }
-
-    // ---------- Ad blocker: AdGuard DNS (DoH) ----------
 
     private fun skipName(d: ByteArray, start: Int): Int {
         var p = start
@@ -1780,9 +1493,7 @@ window.vxFeedErr=function(){
             if (pos + rdlen > d.size) return false
             if ((type == 1 && rdlen == 4) || (type == 28 && rdlen == 16)) {
                 var zero = true
-                for (k in 0 until rdlen) {
-                    if (d[pos + k].toInt() != 0) zero = false
-                }
+                for (k in 0 until rdlen) { if (d[pos + k].toInt() != 0) zero = false }
                 if (zero) return true
             }
             pos += rdlen
@@ -1793,44 +1504,34 @@ window.vxFeedErr=function(){
     private fun dohBlocked(host: String): Boolean {
         val cached = dnsCache[host]
         if (cached != null) return cached
-        var ok = false
-        var result = false
+        var ok = false; var result = false
         try {
             val out = ByteArrayOutputStream()
             out.write(byteArrayOf(0x12, 0x34, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00))
             for (label in host.split(".")) {
                 if (label.isEmpty()) continue
                 val b = label.toByteArray()
-                out.write(b.size)
-                out.write(b)
+                out.write(b.size); out.write(b)
             }
             out.write(0)
             out.write(byteArrayOf(0x00, 0x01, 0x00, 0x01))
             val con = URL(dohUrl).openConnection() as HttpURLConnection
-            con.requestMethod = "POST"
-            con.connectTimeout = 2500
-            con.readTimeout = 2500
-            con.doOutput = true
+            con.requestMethod = "POST"; con.connectTimeout = 2500; con.readTimeout = 2500; con.doOutput = true
             con.setRequestProperty("Content-Type", "application/dns-message")
             con.setRequestProperty("Accept", "application/dns-message")
             con.outputStream.use { it.write(out.toByteArray()) }
             if (con.responseCode == 200) {
                 val data = con.inputStream.use { it.readBytes() }
-                result = parseBlocked(data)
-                ok = true
+                result = parseBlocked(data); ok = true
             }
             con.disconnect()
-        } catch (e: Exception) {
-        }
+        } catch (e: Exception) {}
         if (ok) dnsCache[host] = result
         return result
     }
 
-    // ---------- Site rules (injector) ----------
-
     private fun youtubeRule(): Rule {
-        val css = ".ytp-ad-overlay-container,.ytp-ad-image-overlay,#masthead-ad,ytd-ad-slot-renderer," +
-            "ytd-promoted-sparkles-web-renderer,.ytd-display-ad-renderer{display:none!important}"
+        val css = ".ytp-ad-overlay-container,.ytp-ad-image-overlay,#masthead-ad,ytd-ad-slot-renderer,ytd-promoted-sparkles-web-renderer,.ytd-display-ad-renderer{display:none!important}"
         val js = """
 (function(){
   if(window.__vxYT) return; window.__vxYT=1;
@@ -1863,30 +1564,23 @@ window.vxFeedErr=function(){
                 val o = arr.getJSONObject(i)
                 rules.add(Rule(o.getString("host"), o.optString("css"), o.optString("js"), o.optBoolean("on", true)))
             }
-        } catch (e: Exception) {
-        }
+        } catch (e: Exception) {}
     }
 
     private fun saveRules() {
         val arr = JSONArray()
         for (r in rules) {
             val o = JSONObject()
-            o.put("host", r.host)
-            o.put("css", r.css)
-            o.put("js", r.js)
-            o.put("on", r.on)
+            o.put("host", r.host); o.put("css", r.css); o.put("js", r.js); o.put("on", r.on)
             arr.put(o)
         }
         prefs.edit().putString("rules", arr.toString()).apply()
     }
 
-    private fun matches(host: String, ruleHost: String): Boolean =
-        host == ruleHost || host.endsWith("." + ruleHost)
+    private fun matches(host: String, ruleHost: String): Boolean = host == ruleHost || host.endsWith(".$ruleHost")
 
     private fun cssJs(id: String, css: String): String =
-        "(function(){var s=document.getElementById('" + id + "');" +
-            "if(!s){s=document.createElement('style');s.id='" + id + "';document.documentElement.appendChild(s);}" +
-            "s.textContent=" + JSONObject.quote(css) + ";})();"
+        "(function(){var s=document.getElementById('$id');if(!s){s=document.createElement('style');s.id='$id';document.documentElement.appendChild(s);}s.textContent=" + JSONObject.quote(css) + ";})();"
 
     private fun inject(w: WebView, url: String?) {
         val host = hostOf(url) ?: return
@@ -1904,33 +1598,13 @@ window.vxFeedErr=function(){
         col.orientation = LinearLayout.VERTICAL
         col.setPadding(pad, pad, pad, pad)
 
-        val hostEt = EditText(this)
-        hostEt.setSingleLine()
-        hostEt.hint = "domain (e.g. youtube.com)"
-        hostEt.setText(hostIn)
+        val hostEt = EditText(this); hostEt.setSingleLine(); hostEt.hint = "domain (e.g. youtube.com)"; hostEt.setText(hostIn)
+        val cssEt = EditText(this); cssEt.hint = "Custom CSS"; cssEt.minLines = 4; cssEt.gravity = Gravity.TOP; cssEt.setText(existing?.css ?: "")
+        val jsEt = EditText(this); jsEt.hint = "Custom JS"; jsEt.minLines = 6; jsEt.gravity = Gravity.TOP; jsEt.setText(existing?.js ?: "")
+        val onCb = CheckBox(this); onCb.text = "Enabled"; onCb.isChecked = existing?.on ?: true
 
-        val cssEt = EditText(this)
-        cssEt.hint = "Custom CSS"
-        cssEt.minLines = 4
-        cssEt.gravity = Gravity.TOP
-        cssEt.setText(existing?.css ?: "")
-
-        val jsEt = EditText(this)
-        jsEt.hint = "Custom JS"
-        jsEt.minLines = 6
-        jsEt.gravity = Gravity.TOP
-        jsEt.setText(existing?.js ?: "")
-
-        val onCb = CheckBox(this)
-        onCb.text = "Enabled"
-        onCb.isChecked = existing?.on ?: true
-
-        col.addView(hostEt)
-        col.addView(cssEt)
-        col.addView(jsEt)
-        col.addView(onCb)
-        val sv = ScrollView(this)
-        sv.addView(col)
+        col.addView(hostEt); col.addView(cssEt); col.addView(jsEt); col.addView(onCb)
+        val sv = ScrollView(this); sv.addView(col)
 
         AlertDialog.Builder(this)
             .setTitle("Site injector")
@@ -1955,14 +1629,9 @@ window.vxFeedErr=function(){
 
     private fun editSiteRule() {
         val h = hostOf(tabs[cur].url)
-        if (h == null || h == "vortex.local") {
-            toast("Open a site first")
-            return
-        }
+        if (h == null || h == "vortex.local") { toast("Open a site first"); return }
         showRuleEditor(h.removePrefix("www.").removePrefix("m."))
     }
-
-    // ---------- Toolbox actions ----------
 
     private fun screenshot() {
         val w = tabs[cur]
@@ -1973,46 +1642,22 @@ window.vxFeedErr=function(){
             val cv = ContentValues()
             cv.put(MediaStore.Images.Media.DISPLAY_NAME, "Vortex_" + System.currentTimeMillis() + ".png")
             cv.put(MediaStore.Images.Media.MIME_TYPE, "image/png")
-            if (Build.VERSION.SDK_INT >= 29) {
-                cv.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Vortex")
-            }
-            val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv)
-            if (uri == null) {
-                toast("Screenshot save failed")
-                return
-            }
-            val os = contentResolver.openOutputStream(uri)
-            if (os != null) {
-                bmp.compress(Bitmap.CompressFormat.PNG, 100, os)
-                os.close()
-            }
+            if (Build.VERSION.SDK_INT >= 29) cv.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Vortex")
+            val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv) ?: return
+            contentResolver.openOutputStream(uri)?.use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
             toast("Saved: Pictures/Vortex")
-        } catch (e: Exception) {
-            toast("Screenshot save failed")
-        }
+        } catch (e: Exception) { toast("Screenshot save failed") }
     }
 
     private fun toggleDesktop() {
         desktop = !desktop
-        tabs[cur].settings.userAgentString =
-            if (desktop) desktopUa else WebSettings.getDefaultUserAgent(this)
+        tabs[cur].settings.userAgentString = if (desktop) desktopUa else WebSettings.getDefaultUserAgent(this)
         tabs[cur].reload()
-    }
-
-    private fun openDownloads() {
-        try {
-            startActivity(Intent(DownloadManager.ACTION_VIEW_DOWNLOADS))
-        } catch (e: Exception) {
-            toast("Downloads app not found")
-        }
     }
 
     private fun sharePage() {
         val u = tabs[cur].url
-        if (u == null || shown(u).isEmpty()) {
-            toast("Open a site first")
-            return
-        }
+        if (u == null || shown(u).isEmpty()) { toast("Open a site first"); return }
         shareText(u)
     }
 
@@ -2031,8 +1676,6 @@ window.vxFeedErr=function(){
             .show()
     }
 
-    // ---------- Toolbox page ----------
-
     private fun showToolbox() {
         val sv = ScrollView(this)
         sv.background = bgGradient()
@@ -2047,32 +1690,17 @@ window.vxFeedErr=function(){
 
         val logoId = resources.getIdentifier("logo", "drawable", packageName)
         if (logoId != 0) {
-            val iv = ImageView(this)
-            iv.setImageResource(logoId)
+            val iv = ImageView(this); iv.setImageResource(logoId)
             head.addView(iv, lp(dp(56), dp(56)))
         }
 
-        val titles = LinearLayout(this)
-        titles.orientation = LinearLayout.VERTICAL
-        titles.setPadding(dp(12), 0, 0, 0)
-        val nameRow = LinearLayout(this)
-        nameRow.orientation = LinearLayout.HORIZONTAL
-        val n1 = TextView(this)
-        n1.text = "Vortex"
-        n1.textSize = 21f
-        n1.setTextColor(cAccent)
-        val n2 = TextView(this)
-        n2.text = " Browser"
-        n2.textSize = 21f
-        n2.setTextColor(Color.WHITE)
-        nameRow.addView(n1)
-        nameRow.addView(n2)
-        val subT = TextView(this)
-        subT.text = "Toolbox"
-        subT.textSize = 13f
-        subT.setTextColor(cGray)
-        titles.addView(nameRow)
-        titles.addView(subT)
+        val titles = LinearLayout(this); titles.orientation = LinearLayout.VERTICAL; titles.setPadding(dp(12), 0, 0, 0)
+        val nameRow = LinearLayout(this); nameRow.orientation = LinearLayout.HORIZONTAL
+        val n1 = TextView(this); n1.text = "Vortex"; n1.textSize = 21f; n1.setTextColor(cAccent)
+        val n2 = TextView(this); n2.text = " Browser"; n2.textSize = 21f; n2.setTextColor(Color.WHITE)
+        nameRow.addView(n1); nameRow.addView(n2)
+        val subT = TextView(this); subT.text = "Toolbox"; subT.textSize = 13f; subT.setTextColor(cGray)
+        titles.addView(nameRow); titles.addView(subT)
 
         val close = IconView(this, 7)
         close.setOnClickListener { closeOverlay() }
@@ -2082,14 +1710,11 @@ window.vxFeedErr=function(){
         col.addView(head)
 
         val tools = listOf(
-            Tool(10, "Ad Blocker", "AdGuard DNS: " + onOff(adblock)) {
-                adblock = !adblock
-                tabs[cur].reload()
-            },
+            Tool(10, "Ad Blocker", "AdGuard DNS: " + onOff(adblock)) { adblock = !adblock; tabs[cur].reload() },
             Tool(11, "Incognito Mode", "Browse privately") { newTab("home", true) },
             Tool(13, "Screenshot", "Capture screen") { screenshot() },
             Tool(14, "Desktop Mode", "Desktop site: " + onOff(desktop)) { toggleDesktop() },
-            Tool(15, "Download History", "Check your downloads") { openDownloads() },
+            Tool(15, "Download History", "Check your downloads") { showDownloadsPage() },
             Tool(16, "Share Page", "Share current page") { sharePage() },
             Tool(19, "Site Injector", "Custom CSS/JS for this site") { editSiteRule() },
             Tool(6, "Search Engine", engines[engineIdx].first) { cycleEngine() },
@@ -2101,8 +1726,7 @@ window.vxFeedErr=function(){
 
         val tileViews = ArrayList<View>()
         for (pair in tools.chunked(2)) {
-            val row = LinearLayout(this)
-            row.orientation = LinearLayout.HORIZONTAL
+            val row = LinearLayout(this); row.orientation = LinearLayout.HORIZONTAL
             for (tool in pair) {
                 val tv = tile(tool)
                 tileViews.add(tv)
@@ -2113,13 +1737,9 @@ window.vxFeedErr=function(){
         }
 
         val foot = TextView(this)
-        foot.text = "Vortex Tools"
-        foot.gravity = Gravity.CENTER
-        foot.textSize = 15f
-        foot.setTextColor(cAccent)
+        foot.text = "Vortex Tools"; foot.gravity = Gravity.CENTER; foot.textSize = 15f; foot.setTextColor(cAccent)
         foot.background = glass(28, 0x30, 0x14)
-        val fl = lp(mp, dp(52))
-        fl.setMargins(dp(6), dp(18), dp(6), 0)
+        val fl = lp(mp, dp(52)); fl.setMargins(dp(6), dp(18), dp(6), 0)
         col.addView(foot, fl)
 
         sv.addView(col)
@@ -2128,97 +1748,52 @@ window.vxFeedErr=function(){
     }
 
     private fun tile(tool: Tool): View {
-        val card = LinearLayout(this)
-        card.orientation = LinearLayout.VERTICAL
-        card.setPadding(dp(16), dp(14), dp(12), dp(14))
-        card.background = glass(20)
+        val card = LinearLayout(this); card.orientation = LinearLayout.VERTICAL
+        card.setPadding(dp(16), dp(14), dp(12), dp(14)); card.background = glass(20)
 
-        val top = LinearLayout(this)
-        top.orientation = LinearLayout.HORIZONTAL
-        top.gravity = Gravity.CENTER_VERTICAL
-        val ic = IconView(this, tool.kind)
-        ic.tint = cAccent
-        ic.ratio = 0.6f
-        ic.isClickable = false
+        val top = LinearLayout(this); top.orientation = LinearLayout.HORIZONTAL; top.gravity = Gravity.CENTER_VERTICAL
+        val ic = IconView(this, tool.kind); ic.tint = cAccent; ic.ratio = 0.6f; ic.isClickable = false
         val gap = View(this)
-        val ch = IconView(this, 8)
-        ch.tint = cAccent
-        ch.isClickable = false
-        top.addView(ic, lp(dp(52), dp(52)))
-        top.addView(gap, lp(0, 1, 1f))
-        top.addView(ch, lp(dp(28), dp(28)))
+        val ch = IconView(this, 8); ch.tint = cAccent; ch.isClickable = false
+        top.addView(ic, lp(dp(52), dp(52))); top.addView(gap, lp(0, 1, 1f)); top.addView(ch, lp(dp(28), dp(28)))
 
-        val t1 = TextView(this)
-        t1.text = tool.title
-        t1.textSize = 16f
-        t1.setTextColor(Color.WHITE)
-        val t2 = TextView(this)
-        t2.text = tool.sub
-        t2.textSize = 12f
-        t2.setTextColor(cGray)
+        val t1 = TextView(this); t1.text = tool.title; t1.textSize = 16f; t1.setTextColor(Color.WHITE)
+        val t2 = TextView(this); t2.text = tool.sub; t2.textSize = 12f; t2.setTextColor(cGray)
 
         card.addView(top)
-        val tl = lp(mp, wc)
-        tl.topMargin = dp(8)
-        card.addView(t1, tl)
-        card.addView(t2)
+        val tl = lp(mp, wc); tl.topMargin = dp(8)
+        card.addView(t1, tl); card.addView(t2)
         pressAnim(card)
-        card.setOnClickListener {
-            closeOverlay()
-            tool.action()
-        }
+        card.setOnClickListener { closeOverlay(); tool.action() }
         return card
     }
-
-    // ---------- Tabs page ----------
 
     private fun captureThumb(w: WebView) {
         if (w.width <= 0 || w.height <= 0) return
         try {
             val sc = 0.4f
             val bmp = Bitmap.createBitmap((w.width * sc).toInt(), (w.height * sc).toInt(), Bitmap.Config.ARGB_8888)
-            val c = Canvas(bmp)
-            c.scale(sc, sc)
-            w.draw(c)
+            val c = Canvas(bmp); c.scale(sc, sc); w.draw(c)
             thumbs[w] = bmp
-        } catch (e: Exception) {
-        }
+        } catch (e: Exception) {}
     }
 
     private fun showTabsPage() {
         tabs.getOrNull(cur)?.let { captureThumb(it) }
-        val page = LinearLayout(this)
-        page.orientation = LinearLayout.VERTICAL
-        page.background = bgGradient()
+        val page = LinearLayout(this); page.orientation = LinearLayout.VERTICAL; page.background = bgGradient()
 
-        val head = LinearLayout(this)
-        head.orientation = LinearLayout.HORIZONTAL
-        head.gravity = Gravity.CENTER_VERTICAL
+        val head = LinearLayout(this); head.orientation = LinearLayout.HORIZONTAL; head.gravity = Gravity.CENTER_VERTICAL
         head.setPadding(dp(18), dp(24), dp(10), dp(10))
-        val title = TextView(this)
-        title.text = "Tabs (" + tabs.size + ")"
-        title.textSize = 20f
-        title.setTextColor(Color.WHITE)
-        val add = IconView(this, 9)
-        add.tint = cAccent
-        add.setOnClickListener {
-            closeOverlay()
-            newTab("home")
-        }
-        val close = IconView(this, 7)
-        close.setOnClickListener { closeOverlay() }
-        head.addView(title, lp(0, wc, 1f))
-        head.addView(add, lp(dp(44), dp(44)))
-        head.addView(close, lp(dp(44), dp(44)))
+        val title = TextView(this); title.text = "Tabs (" + tabs.size + ")"; title.textSize = 20f; title.setTextColor(Color.WHITE)
+        val add = IconView(this, 9); add.tint = cAccent; add.setOnClickListener { closeOverlay(); newTab("home") }
+        val close = IconView(this, 7); close.setOnClickListener { closeOverlay() }
+        head.addView(title, lp(0, wc, 1f)); head.addView(add, lp(dp(44), dp(44))); head.addView(close, lp(dp(44), dp(44)))
 
         val sv = ScrollView(this)
-        val col = LinearLayout(this)
-        col.orientation = LinearLayout.VERTICAL
-        col.setPadding(dp(10), dp(4), dp(10), dp(24))
+        val col = LinearLayout(this); col.orientation = LinearLayout.VERTICAL; col.setPadding(dp(10), dp(4), dp(10), dp(24))
         val cards = ArrayList<View>()
         for (pair in tabs.indices.toList().chunked(2)) {
-            val row = LinearLayout(this)
-            row.orientation = LinearLayout.HORIZONTAL
+            val row = LinearLayout(this); row.orientation = LinearLayout.HORIZONTAL
             for (i in pair) {
                 val cv = tabCard(i)
                 cards.add(cv)
@@ -2228,63 +1803,36 @@ window.vxFeedErr=function(){
             col.addView(row)
         }
         sv.addView(col)
-
-        page.addView(head)
-        page.addView(sv, lp(mp, 0, 1f))
+        page.addView(head); page.addView(sv, lp(mp, 0, 1f))
         openOverlay(page)
         staggerIn(cards)
     }
 
     private fun tabCard(i: Int): View {
         val w = tabs[i]
-        val card = LinearLayout(this)
-        card.orientation = LinearLayout.VERTICAL
-        card.setPadding(dp(8), dp(8), dp(8), dp(8))
+        val card = LinearLayout(this); card.orientation = LinearLayout.VERTICAL; card.setPadding(dp(8), dp(8), dp(8), dp(8))
         val bg = glass(16)
         if (i == cur) bg.setStroke(dp(2), cAccent)
         card.background = bg
 
-        val raw = w.title
-        val host = hostOf(w.url)
+        val raw = w.title; val host = hostOf(w.url)
         var name = if (shown(w.url).isEmpty()) "Home" else if (!raw.isNullOrBlank()) raw else (host ?: "Tab")
         if (incog.contains(w)) name = "Incognito: " + name
 
-        val head = LinearLayout(this)
-        head.orientation = LinearLayout.HORIZONTAL
-        head.gravity = Gravity.CENTER_VERTICAL
-        val tv = TextView(this)
-        tv.text = name
-        tv.textSize = 12f
-        tv.setTextColor(Color.WHITE)
-        tv.maxLines = 1
-        tv.ellipsize = TextUtils.TruncateAt.END
-        tv.setPadding(dp(4), 0, 0, 0)
-        val x = IconView(this, 7)
-        x.ratio = 0.5f
-        x.setOnClickListener {
-            closeTabAt(i)
-            showTabsPage()
-        }
-        head.addView(tv, lp(0, wc, 1f))
-        head.addView(x, lp(dp(32), dp(32)))
+        val head = LinearLayout(this); head.orientation = LinearLayout.HORIZONTAL; head.gravity = Gravity.CENTER_VERTICAL
+        val tv = TextView(this); tv.text = name; tv.textSize = 12f; tv.setTextColor(Color.WHITE); tv.maxLines = 1; tv.ellipsize = TextUtils.TruncateAt.END; tv.setPadding(dp(4), 0, 0, 0)
+        val x = IconView(this, 7); x.ratio = 0.5f; x.setOnClickListener { closeTabAt(i); showTabsPage() }
+        head.addView(tv, lp(0, wc, 1f)); head.addView(x, lp(dp(32), dp(32)))
 
-        val iv = ImageView(this)
-        iv.scaleType = ImageView.ScaleType.CENTER_CROP
-        iv.setBackgroundColor(cBg)
+        val iv = ImageView(this); iv.scaleType = ImageView.ScaleType.CENTER_CROP; iv.setBackgroundColor(cBg)
         val th = thumbs[w]
         if (th != null) iv.setImageBitmap(th)
 
-        card.addView(head)
-        card.addView(iv, lp(mp, dp(150)))
+        card.addView(head); card.addView(iv, lp(mp, dp(150)))
         pressAnim(card)
-        card.setOnClickListener {
-            closeOverlay()
-            switchTo(i)
-        }
+        card.setOnClickListener { closeOverlay(); switchTo(i) }
         return card
     }
-
-    // ---------- Tabs ----------
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun newTab(url: String, incognito: Boolean = false) {
@@ -2308,10 +1856,7 @@ window.vxFeedErr=function(){
         w.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val u = request.url.toString()
-                if (u.startsWith("vortex://")) {
-                    handleVortex(u)
-                    return true
-                }
+                if (u.startsWith("vortex://")) { handleVortex(u); return true }
                 return false
             }
 
@@ -2342,9 +1887,7 @@ window.vxFeedErr=function(){
                     val f = forceFeed
                     forceFeed = false
                     loadFeed(f)
-                } else if (!incog.contains(view) && shown(url).isNotEmpty() &&
-                    (url.startsWith("http://") || url.startsWith("https://"))
-                ) {
+                } else if (!incog.contains(view) && shown(url).isNotEmpty() && (url.startsWith("http://") || url.startsWith("https://"))) {
                     val ttl = view.title
                     addWebHistory(if (!ttl.isNullOrBlank()) ttl else (hostOf(url) ?: url), url)
                 }
@@ -2352,10 +1895,6 @@ window.vxFeedErr=function(){
                     updateToolbar(url)
                     if (!url.startsWith(homeUrl)) pull.finish()
                 }
-            }
-
-            override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
-                if (view === tabs.getOrNull(cur)) updateToolbar(url)
             }
         }
 
@@ -2366,19 +1905,10 @@ window.vxFeedErr=function(){
                 progress.visibility = if (newProgress in 1..99) View.VISIBLE else View.GONE
             }
 
-            override fun onPermissionRequest(request: PermissionRequest) {
-                runOnUiThread { handleWebPermission(request) }
-            }
+            override fun onPermissionRequest(request: PermissionRequest) { runOnUiThread { handleWebPermission(request) } }
+            override fun onGeolocationPermissionsShowPrompt(origin: String, callback: GeolocationPermissions.Callback) { handleGeo(origin, callback) }
 
-            override fun onGeolocationPermissionsShowPrompt(origin: String, callback: GeolocationPermissions.Callback) {
-                handleGeo(origin, callback)
-            }
-
-            override fun onShowFileChooser(
-                webView: WebView,
-                filePathCallback: ValueCallback<Array<Uri>>,
-                fileChooserParams: WebChromeClient.FileChooserParams
-            ): Boolean {
+            override fun onShowFileChooser(webView: WebView, filePathCallback: ValueCallback<Array<Uri>>, fileChooserParams: WebChromeClient.FileChooserParams): Boolean {
                 fileCallback?.onReceiveValue(null)
                 fileCallback = filePathCallback
                 return try {
@@ -2390,20 +1920,82 @@ window.vxFeedErr=function(){
                     false
                 }
             }
+
+            // Advanced custom Video Fullscreen & Gesture Support (Brightness & Volume controls)
+            private var customView: View? = null
+            private var customViewCallback: CustomViewCallback? = null
+
+            override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
+                if (customView != null) { callback?.onCustomViewHidden(); return }
+                customView = view
+                customViewCallback = callback
+                requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR
+                
+                val decor = window.decorView as FrameLayout
+                decor.addView(customView, FrameLayout.LayoutParams(mp, mp))
+                
+                // Add touch listener for Brightness (Right) & Volume (Left) gestures
+                customView?.setOnTouchListener(object : View.OnTouchListener {
+                    private var startY = 0f
+                    private var isRightSide = false
+                    override fun onTouch(v: View, event: MotionEvent): Boolean {
+                        when (event.action) {
+                            MotionEvent.ACTION_DOWN -> {
+                                startY = event.y
+                                isRightSide = event.x > v.width / 2
+                            }
+                            MotionEvent.ACTION_MOVE -> {
+                                val diff = startY - event.y
+                                if (Math.abs(diff) > 30) {
+                                    val lp = window.attributes
+                                    if (isRightSide) {
+                                        // Brightness control
+                                        lp.screenBrightness = (lp.screenBrightness + (diff / 1000f)).coerceIn(0.01f, 1f)
+                                    } else {
+                                        // Volume control via Audio Manager
+                                        val am = getSystemService(AUDIO_SERVICE) as android.media.AudioManager
+                                        val maxVol = am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
+                                        val curVol = am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)
+                                        val newVol = if (diff > 0) minOf(maxVol, curVol + 1) else maxOf(0, curVol - 1)
+                                        am.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, newVol, 0)
+                                    }
+                                    window.attributes = lp
+                                    startY = event.y
+                                }
+                            }
+                        }
+                        return true
+                    }
+                })
+            }
+
+            override fun onHideCustomView() {
+                val decor = window.decorView as FrameLayout
+                if (customView != null) decor.removeView(customView)
+                customView = null
+                customViewCallback?.onCustomViewHidden()
+                requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            }
         }
 
         w.setDownloadListener { dlUrl, userAgent, contentDisposition, mime, _ ->
+            val fileName = URLUtil.guessFileName(dlUrl, contentDisposition, mime)
             val req = DownloadManager.Request(Uri.parse(dlUrl))
             req.setMimeType(mime)
             req.addRequestHeader("User-Agent", userAgent)
             req.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            req.setDestinationInExternalPublicDir(
-                Environment.DIRECTORY_DOWNLOADS,
-                URLUtil.guessFileName(dlUrl, contentDisposition, mime)
-            )
+            req.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
             val dm = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
             dm.enqueue(req)
-            toast("Downloading...")
+
+            downloadHist.add(0, DownloadItem(fileName, dlUrl, "Downloads/Vortex/$fileName", System.currentTimeMillis()))
+            saveDownloads()
+            toast("Downloading $fileName...")
+        }
+
+        // Scroll listener for Hide-on-Scroll Navigation
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            w.setOnScrollChangeListener { _, _, scrollY, _, _ -> handleScroll(scrollY) }
         }
 
         tabs.add(w)
