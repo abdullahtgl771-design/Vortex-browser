@@ -2,19 +2,20 @@ package com.vortex.browser
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.content.pm.ActivityInfo
+import android.media.AudioManager
+import android.os.Handler
+import android.os.Looper
+import android.os.StatFs
+import android.provider.Settings
+import android.text.format.Formatter
+import android.view.WindowManager
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog
 import android.app.DownloadManager
-import android.annotation.TargetApi
-import android.app.PictureInPictureParams
-import android.content.pm.ShortcutInfo
-import android.content.pm.ShortcutManager
-import android.content.res.Configuration
-import android.graphics.drawable.Icon
-import android.util.Rational
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -63,7 +64,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-class DownloadItem(val name: String, val url: String, val path: String, val ms: Long)
+class DownloadItem(val name: String, val url: String, val path: String, val ms: Long, val id: Long = -1L)
 class Rule(var host: String, var css: String, var js: String, var on: Boolean)
 class Tool(val kind: Int, val title: String, val sub: String, val action: () -> Unit)
 class HistItem(val t: String, val u: String, val ms: Long)
@@ -129,7 +130,7 @@ class IconView(ctx: Context, private val kind: Int) : View(ctx) {
             23 -> { c.drawCircle(12f, 12f, 9f, p); path.moveTo(12f, 7f); path.lineTo(12f, 12f); path.lineTo(15.5f, 14f); c.drawPath(path, p) }
             24 -> { c.drawLine(4f, 7f, 20f, 7f, p); path.moveTo(9f, 7f); path.lineTo(9f, 4f); path.lineTo(15f, 4f); path.lineTo(15f, 7f); path.moveTo(6f, 7f); path.lineTo(7f, 20f); path.lineTo(17f, 20f); path.lineTo(18f, 7f); path.moveTo(10f, 11f); path.lineTo(10f, 16f); path.moveTo(14f, 11f); path.lineTo(14f, 16f); c.drawPath(path, p) }
             25 -> { c.drawCircle(12f, 12f, 9f, p); t.textSize = 13f; c.drawText("?", 12f, 16.4f, t) }
-            26 -> { c.drawRoundRect(5f, 3f, 19f, 21f, 3f, 3f, p); c.drawLine(12f, 8.5f, 12f, 15.5f, p); c.drawLine(8.5f, 12f, 15.5f, 12f, p) }
+            26 -> { c.drawRoundRect(3f, 9f, 21f, 19f, 2.5f, 2.5f, p); path.moveTo(7f, 5f); path.quadTo(12f, 1.5f, 17f, 5f); c.drawPath(path, p) }
         }
         c.restore()
     }
@@ -168,12 +169,11 @@ class PullLayout(ctx: Context) : FrameLayout(ctx) {
     override fun onInterceptTouchEvent(e: MotionEvent): Boolean {
         if (refreshing) return false
         when (e.actionMasked) {
-            MotionEvent.ACTION_DOWN -> { startX = e.x; startY = e.y; pulling = false }
+            MotionEvent.ACTION_DOWN -> { startX = e.x; startY = e.y; atTop = canPull(); pulling = false }
             MotionEvent.ACTION_MOVE -> {
                 val dy = e.y - startY
                 val dx = e.x - startX
-                if (!pulling && !canPull()) { startX = e.x; startY = e.y }
-                else if (!pulling && dy > slop && dy > Math.abs(dx) * 1.5f) pulling = true
+                if (!pulling && atTop && dy > slop && dy > Math.abs(dx) * 1.5f) pulling = true
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> pulling = false
         }
@@ -244,6 +244,43 @@ class MainActivity : Activity() {
     private val webHist = mutableListOf<HistItem>()
     private val searchHist = mutableListOf<String>()
     private val downloadHist = mutableListOf<DownloadItem>()
+    private val handler = Handler(Looper.getMainLooper())
+    private lateinit var toolbarGroup: LinearLayout
+    private lateinit var fs: FrameLayout
+    private lateinit var fsTop: LinearLayout
+    private lateinit var fsTitle: TextView
+    private lateinit var fsSpeed: TextView
+    private lateinit var fsFit: TextView
+    private lateinit var hudBox: LinearLayout
+    private lateinit var hudText: TextView
+    private lateinit var hudBar: ProgressBar
+    private var tbH = 0
+    private var toolbarShown = true
+
+    // fullscreen video player state
+    private var fsView: View? = null
+    private var fsCallback: WebChromeClient.CustomViewCallback? = null
+    private var oldBrightness = -1f
+    private var fsOrient = 0
+    private var speedIdx = 1
+    private var fitIdx = 0
+    private var fsNoJsToast = false
+    private var gDownX = 0f
+    private var gDownY = 0f
+    private var gMode = 0
+    private var gStartVal = 0f
+    private var gActive = false
+    private var gSkip = false
+    private var dtActive = false
+    private var lastTapMs = 0L
+    private var lastTapX = 0f
+    private var downMs = 0L
+    private var hudRunnable: Runnable? = null
+    private var barRunnable: Runnable? = null
+    private val speeds = floatArrayOf(0.5f, 1f, 1.25f, 1.5f, 2f)
+    private val fits = arrayOf("Fit", "Fill", "Stretch")
+    private val dlFolder = "Vortex"
+    private val dlPath = "/storage/emulated/0/Download/Vortex"
     private val dnsCache = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
 
     @Volatile private var suggestToken = 0
@@ -254,20 +291,6 @@ class MainActivity : Activity() {
     private var pendingGeoOrigin: String? = null
     private var pendingGeoCb: GeolocationPermissions.Callback? = null
     private var fileCallback: ValueCallback<Array<Uri>>? = null
-
-    private val playingTabs = HashSet<WebView>()
-    private val videoTabs = HashSet<WebView>()
-    private val favicons = HashMap<WebView, Pair<String?, Bitmap>>()
-    private lateinit var chromeViews: List<View>
-    private var pendingDl: (() -> Unit)? = null
-    private var hideFs: (() -> Unit)? = null
-    private var keepAlive = false
-    private var inPip = false
-    private var vidW = 16
-    private var vidH = 9
-    @Volatile private var dohDownUntil = 0L
-    private val ui = android.os.Handler(android.os.Looper.getMainLooper())
-    private val stopKeep = Runnable { if (playingTabs.isEmpty()) stopKeepAlive() }
 
     private var adblock = true
     private var desktop = false
@@ -317,15 +340,14 @@ class MainActivity : Activity() {
         window.setBackgroundDrawable(bgGradient())
         buildUi()
         newTab(intent?.data?.toString() ?: "home")
-        if (Build.VERSION.SDK_INT >= 33 && !prefs.getBoolean("notif_asked", false)) {
-            prefs.edit().putBoolean("notif_asked", true).apply()
-            if (!hasPerm("android.permission.POST_NOTIFICATIONS")) requestPermissions(arrayOf("android.permission.POST_NOTIFICATIONS"), 94)
-        }
     }
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        hideFs?.let { it(); return }
+        if (fsView != null) {
+            exitFullscreen()
+            return
+        }
         if (overlay.visibility == View.VISIBLE) {
             closeOverlay()
             return
@@ -333,7 +355,6 @@ class MainActivity : Activity() {
         val w = tabs.getOrNull(cur)
         if (w != null && w.canGoBack()) w.goBack()
         else if (tabs.size > 1) closeTabAt(cur)
-        else if (videoPlaying() && enterPip()) { }
         else finish()
     }
 
@@ -352,314 +373,10 @@ class MainActivity : Activity() {
         }
     }
 
-    // ===================== lifecycle / PiP / background media =====================
-
-    override fun onDestroy() {
-        ui.removeCallbacks(stopKeep)
-        stopKeepAlive()
-        super.onDestroy()
-    }
-
-    override fun onNewIntent(intent: Intent?) {
-        super.onNewIntent(intent)
-        val d = intent?.data
-        if (d != null) newTab(d.toString())
-    }
-
-    override fun onUserLeaveHint() {
-        super.onUserLeaveHint()
-        // Android 12+ uses setAutoEnterEnabled (see pipParams); older versions enter here
-        if (Build.VERSION.SDK_INT in 26..30 && videoPlaying()) enterPip()
-    }
-
-    @TargetApi(26)
-    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
-        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
-        inPip = isInPictureInPictureMode
-        if (inPip && overlay.visibility == View.VISIBLE) {
-            overlayGen++; overlay.visibility = View.GONE; overlay.removeAllViews()
-        }
-        val vis = if (inPip) View.GONE else View.VISIBLE
-        for (v in chromeViews) v.visibility = vis
-        if (!inPip) progress.visibility = View.GONE
-        if (hideFs == null) {
-            tabs.getOrNull(cur)?.evaluateJavascript("window.__vxPip&&window.__vxPip(" + inPip + ")", null)
-        }
-    }
-
-    private fun videoPlaying(): Boolean {
-        val w = tabs.getOrNull(cur)
-        return w != null && videoTabs.contains(w)
-    }
-
-    @TargetApi(26)
-    private fun pipParams(): PictureInPictureParams {
-        val b = PictureInPictureParams.Builder().setAspectRatio(Rational(vidW, vidH))
-        if (Build.VERSION.SDK_INT >= 31) b.setAutoEnterEnabled(videoPlaying())
-        return b.build()
-    }
-
-    private fun updatePipParams() {
-        if (Build.VERSION.SDK_INT < 26) return
-        try { setPictureInPictureParams(pipParams()) } catch (e: Exception) {}
-    }
-
-    @TargetApi(26)
-    private fun enterPip(): Boolean {
-        if (Build.VERSION.SDK_INT < 26 || inPip) return false
-        if (!packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) return false
-        return try { enterPictureInPictureMode(pipParams()) } catch (e: Exception) { false }
-    }
-
-    inner class MediaBridge(private val w: WebView) {
-        @JavascriptInterface
-        fun state(any: Boolean, video: Boolean, vw: Int, vh: Int) {
-            runOnUiThread { onMediaState(w, any, video, vw, vh) }
-        }
-    }
-
-    private fun onMediaState(w: WebView, any: Boolean, video: Boolean, vw: Int, vh: Int) {
-        if (!tabs.contains(w)) return
-        if (any) playingTabs.add(w) else playingTabs.remove(w)
-        if (video) videoTabs.add(w) else videoTabs.remove(w)
-        if (video && vw > 0 && vh > 0) {
-            val r = vw.toFloat() / vh
-            if (r in 0.45f..2.3f) { vidW = vw; vidH = vh }
-        }
-        ui.removeCallbacks(stopKeep)
-        if (playingTabs.isNotEmpty()) startKeepAlive() else ui.postDelayed(stopKeep, 45000L)
-        updatePipParams()
-    }
-
-    private fun startKeepAlive() {
-        if (keepAlive) return
-        try {
-            MediaKeepAliveService.onStopAction = { pauseAllMedia() }
-            val i = Intent(this, MediaKeepAliveService::class.java)
-            if (Build.VERSION.SDK_INT >= 26) startForegroundService(i) else startService(i)
-            keepAlive = true
-        } catch (e: Exception) {}
-    }
-
-    private fun stopKeepAlive() {
-        if (!keepAlive) return
-        keepAlive = false
-        MediaKeepAliveService.onStopAction = null
-        try { stopService(Intent(this, MediaKeepAliveService::class.java)) } catch (e: Exception) {}
-    }
-
-    private fun pauseAllMedia() {
-        for (t in tabs) {
-            t.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){try{m.pause()}catch(e){}})", null)
-        }
-    }
-
-    private val mediaJs = """
-(function(){
-  if(window.__vxMedia) return; window.__vxMedia=1;
-  try{
-    var D=document;
-    ['hidden','webkitHidden'].forEach(function(k){Object.defineProperty(D,k,{get:function(){return false},configurable:true});});
-    ['visibilityState','webkitVisibilityState'].forEach(function(k){Object.defineProperty(D,k,{get:function(){return 'visible'},configurable:true});});
-    var stop=function(e){e.stopImmediatePropagation();};
-    D.addEventListener('visibilitychange',stop,true);
-    D.addEventListener('webkitvisibilitychange',stop,true);
-  }catch(e){}
-  var last='';
-  function rep(){
-    try{
-      var els=document.querySelectorAll('video,audio'),any=false,vid=false,w=0,h=0;
-      for(var i=0;i<els.length;i++){
-        var m=els[i];
-        if(!m.paused&&!m.ended&&!m.muted&&m.volume>0&&m.readyState>2){
-          any=true;
-          if(m.tagName==='VIDEO'&&m.videoWidth>0){vid=true;w=m.videoWidth;h=m.videoHeight;}
-        }
-      }
-      var k=any+','+vid+','+w+','+h;
-      if(k!==last){last=k;VortexMedia.state(any,vid,w,h);}
-    }catch(e){}
-  }
-  ['play','playing','pause','ended','emptied','volumechange','loadeddata'].forEach(function(n){document.addEventListener(n,rep,true);});
-  setInterval(rep,2000);
-  window.__vxPip=function(on){
-    try{
-      var old=document.getElementById('__vxpipcss'); if(old) old.remove();
-      document.querySelectorAll('[data-vxp]').forEach(function(e){e.removeAttribute('data-vxp');});
-      if(!on) return;
-      var vs=document.querySelectorAll('video'),v=null;
-      for(var i=0;i<vs.length;i++){ if(!vs[i].paused){v=vs[i];break;} }
-      if(!v) return;
-      var e=v; while(e&&e!==document.documentElement){ e.setAttribute('data-vxp','1'); e=e.parentElement; }
-      v.setAttribute('data-vxp','v');
-      var s=document.createElement('style'); s.id='__vxpipcss';
-      s.textContent='body *:not([data-vxp]){visibility:hidden!important}[data-vxp]{transform:none!important;filter:none!important;contain:none!important;overflow:visible!important;clip-path:none!important}video[data-vxp="v"]{position:fixed!important;left:0!important;top:0!important;width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;z-index:2147483647!important;background:#000!important;object-fit:contain!important;visibility:visible!important}';
-      document.documentElement.appendChild(s);
-    }catch(e){}
-  };
-})();
-"""
-
-    private fun injectMedia(w: WebView) {
-        val u = w.url ?: return
-        if (!(u.startsWith("http://") || u.startsWith("https://"))) return
-        w.evaluateJavascript(mediaJs, null)
-    }
-
-    // ===================== downloads =====================
-
-    private fun smartFileName(url: String, cd: String?, mime: String?): String {
-        var name: String? = null
-        if (!cd.isNullOrBlank()) {
-            val star = Regex("filename\\*\\s*=\\s*[^']*'[^']*'([^;]+)", RegexOption.IGNORE_CASE).find(cd)
-            val plain = Regex("filename\\s*=\\s*\"?([^\";]+)\"?", RegexOption.IGNORE_CASE).find(cd)
-            name = star?.groupValues?.get(1)?.trim()?.let { Uri.decode(it.trim('"')) }
-                ?: plain?.groupValues?.get(1)?.trim()
-        }
-        if (name.isNullOrBlank()) {
-            val uri = Uri.parse(url)
-            val seg = uri.lastPathSegment?.let { Uri.decode(it) }
-            name = if (seg != null && seg.contains('.')) seg else null
-            if (name == null) {
-                for (k in listOf("filename", "file", "name", "fn", "title")) {
-                    val v = uri.getQueryParameter(k)
-                    if (!v.isNullOrBlank() && v.contains('.')) { name = v; break }
-                }
-            }
-        }
-        val raw = (if (name.isNullOrBlank()) null else name) ?: URLUtil.guessFileName(url, cd, mime)
-        var n = raw.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim()
-        if (n.isEmpty()) n = "download"
-
-        val dot = n.lastIndexOf('.')
-        val ext = if (dot > 0 && dot < n.length - 1) n.substring(dot + 1).lowercase() else ""
-        if (ext.isEmpty() || ext == "bin") {
-            val base = if (ext == "bin") n.substring(0, dot) else n
-            var newExt: String? = null
-            val lu = url.lowercase()
-            val m = mime?.substringBefore(';')?.trim()?.lowercase() ?: ""
-            if (m.contains("android.package-archive")) newExt = "apk"
-            else if (lu.contains(".apk")) newExt = "apk"
-            else if (m.isNotEmpty() && m != "application/octet-stream" && m != "binary/octet-stream") {
-                newExt = MimeTypeMap.getSingleton().getExtensionFromMimeType(m)
-            }
-            if (newExt != null) n = base + "." + newExt
-        }
-        return n
-    }
-
-    private fun mimeFor(name: String, mime: String?): String? {
-        val lower = name.lowercase()
-        if (lower.endsWith(".apk")) return "application/vnd.android.package-archive"
-        val m = mime?.substringBefore(';')?.trim()
-        if (!m.isNullOrEmpty() && m != "application/octet-stream" && m != "binary/octet-stream") return m
-        val ext = lower.substringAfterLast('.', "")
-        return MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: m
-    }
-
-    private fun startDownload(dlUrl: String, ua: String?, cd: String?, mime: String?, referer: String?) {
-        if (!(dlUrl.startsWith("http://") || dlUrl.startsWith("https://"))) {
-            toast("This download type is not supported")
-            return
-        }
-        if (Build.VERSION.SDK_INT <= 28 && !hasPerm(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
-            pendingDl = { startDownload(dlUrl, ua, cd, mime, referer) }
-            requestPermissions(arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE), 93)
-            return
-        }
-        val name = smartFileName(dlUrl, cd, mime)
-        try {
-            val req = DownloadManager.Request(Uri.parse(dlUrl))
-            val type = mimeFor(name, mime)
-            if (type != null) req.setMimeType(type)
-            if (!ua.isNullOrEmpty()) req.addRequestHeader("User-Agent", ua)
-            val ck = CookieManager.getInstance().getCookie(dlUrl)
-            if (!ck.isNullOrEmpty()) req.addRequestHeader("Cookie", ck)
-            if (!referer.isNullOrEmpty() && referer.startsWith("http")) req.addRequestHeader("Referer", referer)
-            req.setTitle(name)
-            req.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            req.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "Vortex/" + name)
-            val dm = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
-            dm.enqueue(req)
-            downloadHist.add(0, DownloadItem(name, dlUrl, "Downloads/Vortex/" + name, System.currentTimeMillis()))
-            saveDownloads()
-            toast("Downloading " + name + "...")
-        } catch (e: Exception) {
-            toast("Download failed, opening in another app")
-            try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(dlUrl))) } catch (x: Exception) {}
-        }
-    }
-
-    // ===================== install / shortcut =====================
-
-    private fun shortcutBitmap(fav: Bitmap?, host: String): Bitmap {
-        val size = 432
-        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val c = Canvas(bmp)
-        c.drawColor(Color.parseColor("#2A2150"))
-        val p = Paint(Paint.ANTI_ALIAS_FLAG)
-        if (fav != null && fav.width > 0) {
-            val s = 200f
-            val dst = RectF((size - s) / 2f, (size - s) / 2f, (size + s) / 2f, (size + s) / 2f)
-            p.isFilterBitmap = true
-            c.drawBitmap(fav, null, dst, p)
-        } else {
-            p.color = Color.WHITE; p.textSize = 190f; p.textAlign = Paint.Align.CENTER; p.typeface = Typeface.DEFAULT_BOLD
-            val letter = host.removePrefix("www.").take(1).uppercase()
-            c.drawText(letter, size / 2f, size / 2f + 66f, p)
-        }
-        return bmp
-    }
-
-    private fun installShortcut() {
-        val w = tabs.getOrNull(cur) ?: return
-        val u = w.url
-        if (u == null || !(u.startsWith("http://") || u.startsWith("https://"))) { toast("Open a site first"); return }
-        val host = hostOf(u) ?: "site"
-        val title = w.title
-        val label = (if (!title.isNullOrBlank()) title else host.removePrefix("www.")).take(24)
-        val fav = favicons[w]?.takeIf { it.first == host }?.second
-        val icon = shortcutBitmap(fav, host)
-
-        val launch = Intent(this, MainActivity::class.java)
-        launch.action = Intent.ACTION_VIEW
-        launch.data = Uri.parse(u)
-
-        try {
-            if (Build.VERSION.SDK_INT >= 26) {
-                val sm = getSystemService(ShortcutManager::class.java)
-                if (sm != null && sm.isRequestPinShortcutSupported) {
-                    val info = ShortcutInfo.Builder(this, "vx_" + Math.abs(u.hashCode()))
-                        .setShortLabel(label).setLongLabel(label)
-                        .setIcon(Icon.createWithAdaptiveBitmap(icon))
-                        .setIntent(launch).build()
-                    sm.requestPinShortcut(info, null)
-                } else {
-                    toast("Your launcher does not support shortcuts")
-                }
-            } else {
-                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                val add = Intent("com.android.launcher.action.INSTALL_SHORTCUT")
-                add.putExtra(Intent.EXTRA_SHORTCUT_INTENT, launch)
-                add.putExtra(Intent.EXTRA_SHORTCUT_NAME, label)
-                add.putExtra(Intent.EXTRA_SHORTCUT_ICON, icon)
-                sendBroadcast(add)
-                toast("Shortcut added")
-            }
-        } catch (e: Exception) {
-            toast("Could not create shortcut")
-        }
-    }
-
     private fun hasPerm(p: String) = checkSelfPermission(p) == PackageManager.PERMISSION_GRANTED
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 93) {
-            val job = pendingDl
-            pendingDl = null
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) job?.invoke() else toast("Storage permission denied")
-        }
         if (requestCode == 91) {
             val req = pendingPerm
             pendingPerm = null
@@ -742,92 +459,302 @@ class MainActivity : Activity() {
             .show()
     }
 
+    private class DlRow(val bar: ProgressBar, val sub: TextView)
+
     private fun loadDownloads() {
         try {
             val raw = prefs.getString("dl_hist", "[]") ?: "[]"
             val a = JSONArray(raw)
             for (i in 0 until a.length()) {
                 val o = a.getJSONObject(i)
-                downloadHist.add(DownloadItem(o.getString("n"), o.getString("u"), o.getString("p"), o.getLong("ms")))
+                downloadHist.add(
+                    DownloadItem(o.getString("n"), o.getString("u"), o.optString("p"), o.getLong("ms"), o.optLong("id", -1L))
+                )
             }
-        } catch (e: Exception) {}
+        } catch (e: Exception) {
+        }
     }
 
     private fun saveDownloads() {
         val a = JSONArray()
         for (d in downloadHist) {
             val o = JSONObject()
-            o.put("n", d.name); o.put("u", d.url); o.put("p", d.path); o.put("ms", d.ms)
+            o.put("n", d.name)
+            o.put("u", d.url)
+            o.put("p", d.path)
+            o.put("ms", d.ms)
+            o.put("id", d.id)
             a.put(o)
         }
         prefs.edit().putString("dl_hist", a.toString()).apply()
     }
 
+    private fun startDownload(dlUrl: String, ua: String?, cd: String?, mime: String?) {
+        var fileName = URLUtil.guessFileName(dlUrl, cd, mime)
+        if (fileName.endsWith(".bin") && mime != null) {
+            if (mime.contains("video/mp4")) fileName = fileName.replace(".bin", ".mp4")
+            else if (mime.contains("audio/mpeg")) fileName = fileName.replace(".bin", ".mp3")
+            else if (mime.contains("image/")) fileName = fileName.replace(".bin", ".jpg")
+        }
+        try {
+            val req = DownloadManager.Request(Uri.parse(dlUrl))
+            if (mime != null) req.setMimeType(mime)
+            if (ua != null) req.addRequestHeader("User-Agent", ua)
+            val cookie = CookieManager.getInstance().getCookie(dlUrl)
+            if (cookie != null) req.addRequestHeader("Cookie", cookie)
+            req.setTitle(fileName)
+            req.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            req.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, dlFolder + "/" + fileName)
+            val dm = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+            val id = dm.enqueue(req)
+            downloadHist.add(0, DownloadItem(fileName, dlUrl, dlPath + "/" + fileName, System.currentTimeMillis(), id))
+            while (downloadHist.size > 200) downloadHist.removeAt(downloadHist.size - 1)
+            saveDownloads()
+            toast("Downloading " + fileName + "  (Toolbox > Downloads)")
+        } catch (e: Exception) {
+            toast("This file cannot be downloaded directly")
+        }
+    }
+
+    // returns [status, bytesSoFar, totalBytes] or null if the system no longer knows this download
+    private fun queryDl(id: Long): LongArray? {
+        val dm = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+        val c = dm.query(DownloadManager.Query().setFilterById(id))
+        try {
+            if (c != null && c.moveToFirst()) {
+                val st = c.getInt(c.getColumnIndex(DownloadManager.COLUMN_STATUS))
+                val so = c.getLong(c.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
+                val tot = c.getLong(c.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
+                return longArrayOf(st.toLong(), so, tot)
+            }
+        } catch (e: Exception) {
+        } finally {
+            c?.close()
+        }
+        return null
+    }
+
+    private fun dlPct(st: LongArray): Int =
+        if (st[2] > 0) (st[1] * 100 / st[2]).toInt().coerceIn(0, 100) else 0
+
+    // 1 video, 2 audio, 3 other
+    private fun dlCat(name: String): Int {
+        val n = name.lowercase()
+        if (n.endsWith(".mp4") || n.endsWith(".mkv") || n.endsWith(".webm") || n.endsWith(".avi") ||
+            n.endsWith(".mov") || n.endsWith(".3gp") || n.endsWith(".m4v")
+        ) return 1
+        if (n.endsWith(".mp3") || n.endsWith(".wav") || n.endsWith(".aac") || n.endsWith(".m4a") ||
+            n.endsWith(".ogg") || n.endsWith(".flac") || n.endsWith(".opus")
+        ) return 2
+        return 3
+    }
+
+    private fun dlSubtitle(d: DownloadItem, st: LongArray?, fmt: SimpleDateFormat, speed: Long): String {
+        val date = fmt.format(Date(d.ms))
+        if (st == null) return "File removed  |  " + date
+        val status = st[0].toInt()
+        return when (status) {
+            DownloadManager.STATUS_SUCCESSFUL ->
+                Formatter.formatFileSize(this, if (st[2] > 0) st[2] else st[1]) + "  |  " + date
+            DownloadManager.STATUS_FAILED -> "Failed  |  " + date
+            DownloadManager.STATUS_PAUSED -> "Paused  " + dlPct(st) + "%  |  " + date
+            DownloadManager.STATUS_PENDING -> "Waiting...  |  " + date
+            else -> {
+                val totalTxt = if (st[2] > 0) Formatter.formatFileSize(this, st[2]) else "?"
+                val spTxt = if (speed > 0L) "  |  " + Formatter.formatFileSize(this, speed) + "/s" else ""
+                "Downloading " + dlPct(st) + "%  |  " + Formatter.formatFileSize(this, st[1]) + " of " + totalTxt + spTxt
+            }
+        }
+    }
+
+    private fun openDownloaded(d: DownloadItem) {
+        if (d.id < 0) {
+            toast("File info missing")
+            return
+        }
+        val st = queryDl(d.id)
+        if (st == null || st[0].toInt() != DownloadManager.STATUS_SUCCESSFUL) {
+            toast("File is not ready")
+            return
+        }
+        val dm = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+        val uri = dm.getUriForDownloadedFile(d.id)
+        if (uri == null) {
+            toast("File not found")
+            return
+        }
+        val mime = dm.getMimeTypeForDownloadedFile(d.id) ?: "*/*"
+        val i = Intent(Intent.ACTION_VIEW)
+        i.setDataAndType(uri, mime)
+        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        try {
+            startActivity(i)
+        } catch (e: Exception) {
+            toast("No app found to open this file")
+        }
+    }
+
+    private fun confirmDeleteDownload(d: DownloadItem, after: () -> Unit) {
+        val st = if (d.id >= 0) queryDl(d.id) else null
+        val code = if (st != null) st[0].toInt() else -1
+        val running = code == DownloadManager.STATUS_RUNNING || code == DownloadManager.STATUS_PENDING ||
+            code == DownloadManager.STATUS_PAUSED
+        val items = if (running) arrayOf("Cancel download") else arrayOf("Remove from list", "Delete file too")
+        AlertDialog.Builder(this)
+            .setTitle(d.name)
+            .setItems(items) { _, i ->
+                if ((running || i == 1) && d.id >= 0) {
+                    try {
+                        (getSystemService(DOWNLOAD_SERVICE) as DownloadManager).remove(d.id)
+                    } catch (e: Exception) {
+                    }
+                }
+                downloadHist.remove(d)
+                saveDownloads()
+                after()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun dlRow(
+        d: DownloadItem,
+        st: LongArray?,
+        fmt: SimpleDateFormat,
+        rows: HashMap<Long, DlRow>,
+        onChange: () -> Unit
+    ): View {
+        val row = LinearLayout(this)
+        row.orientation = LinearLayout.HORIZONTAL
+        row.gravity = Gravity.CENTER_VERTICAL
+        row.setPadding(dp(6), dp(10), dp(6), dp(10))
+
+        val ext = d.name.substringAfterLast('.', "").uppercase().take(4)
+        val badge = TextView(this)
+        badge.text = if (ext.isEmpty()) "FILE" else ext
+        badge.gravity = Gravity.CENTER
+        badge.textSize = 11f
+        badge.setTextColor(cAccent)
+        badge.typeface = Typeface.DEFAULT_BOLD
+        badge.background = glass(12, 0x28, 0x10)
+
+        val col = LinearLayout(this)
+        col.orientation = LinearLayout.VERTICAL
+        val t1 = TextView(this)
+        t1.text = d.name
+        t1.textSize = 15f
+        t1.setTextColor(Color.WHITE)
+        t1.maxLines = 1
+        t1.ellipsize = TextUtils.TruncateAt.END
+        val t2 = TextView(this)
+        t2.text = dlSubtitle(d, st, fmt, 0L)
+        t2.textSize = 12f
+        t2.setTextColor(cGray)
+        t2.maxLines = 1
+        t2.ellipsize = TextUtils.TruncateAt.END
+        val pb = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal)
+        pb.max = 100
+        pb.progressTintList = ColorStateList.valueOf(cAccent)
+        val code = if (st != null) st[0].toInt() else -1
+        val running = code == DownloadManager.STATUS_RUNNING || code == DownloadManager.STATUS_PENDING ||
+            code == DownloadManager.STATUS_PAUSED
+        pb.visibility = if (running) View.VISIBLE else View.GONE
+        pb.progress = if (st != null) dlPct(st) else 0
+        col.addView(t1)
+        col.addView(t2)
+        val pbl = lp(mp, dp(3))
+        pbl.topMargin = dp(6)
+        col.addView(pb, pbl)
+
+        val del = IconView(this, 24)
+        del.ratio = 0.45f
+        del.tint = cGray
+        del.setOnClickListener { confirmDeleteDownload(d, onChange) }
+
+        val bl = lp(dp(46), dp(46))
+        bl.rightMargin = dp(12)
+        row.addView(badge, bl)
+        row.addView(col, lp(0, wc, 1f))
+        row.addView(del, lp(dp(40), dp(40)))
+        row.setOnClickListener { openDownloaded(d) }
+        pressAnim(row)
+
+        if (d.id >= 0) rows[d.id] = DlRow(pb, t2)
+        return row
+    }
+
     private fun showDownloadsPage() {
-        var currentFilter = 0
+        var fcat = 0
         val page = LinearLayout(this)
         page.orientation = LinearLayout.VERTICAL
         page.background = bgGradient()
-        page.setPadding(dp(12), dp(20), dp(12), 0)
+        page.setPadding(dp(12), dp(24), dp(12), 0)
 
         val head = LinearLayout(this)
         head.orientation = LinearLayout.HORIZONTAL
         head.gravity = Gravity.CENTER_VERTICAL
         val title = TextView(this)
-        title.text = "Downloads"; title.textSize = 21f; title.setTextColor(Color.WHITE); title.setPadding(dp(6), 0, 0, 0)
-
-        val trash = IconView(this, 24); trash.tint = Color.parseColor("#C4C4D4")
-        val close = IconView(this, 7); close.tint = Color.parseColor("#C4C4D4")
+        title.text = "Downloads"
+        title.textSize = 22f
+        title.setTextColor(Color.WHITE)
+        title.setPadding(dp(6), 0, 0, 0)
+        val trash = IconView(this, 24)
+        val close = IconView(this, 7)
         close.setOnClickListener { closeOverlay() }
-
         head.addView(title, lp(0, wc, 1f))
-        head.addView(trash, lp(dp(40), dp(40)))
-        head.addView(close, lp(dp(40), dp(40)))
+        head.addView(trash, lp(dp(44), dp(44)))
+        head.addView(close, lp(dp(44), dp(44)))
 
-        val storageLayout = LinearLayout(this)
-        storageLayout.orientation = LinearLayout.VERTICAL
-        storageLayout.setPadding(dp(6), dp(10), dp(6), dp(10))
-        val storageText = TextView(this)
-        storageText.text = "Storage: Using local Vortex folder"
-        storageText.textSize = 12.5f
-        storageText.setTextColor(cGray)
-        
-        val barBg = FrameLayout(this)
-        val bgDrawable = GradientDrawable()
-        bgDrawable.cornerRadius = dp(4).toFloat()
-        bgDrawable.setColor(Color.parseColor("#262638"))
-        barBg.background = bgDrawable
-        
-        val fillBar = View(this)
-        val fillDrawable = GradientDrawable()
-        fillDrawable.cornerRadius = dp(4).toFloat()
-        fillDrawable.setColor(cAccent)
-        fillBar.background = fillDrawable
-        barBg.addView(fillBar, FrameLayout.LayoutParams(dp(120), dp(6)))
-        storageLayout.addView(storageText)
-        storageLayout.addView(barBg, lp(mp, dp(6)).apply { topMargin = dp(6) })
+        val storage = LinearLayout(this)
+        storage.orientation = LinearLayout.VERTICAL
+        storage.setPadding(dp(6), dp(10), dp(6), dp(6))
+        val sText = TextView(this)
+        sText.textSize = 12.5f
+        sText.setTextColor(cGray)
+        var usedFrac = 0f
+        try {
+            val sf = StatFs(Environment.getExternalStorageDirectory().path)
+            val total = sf.totalBytes
+            val free = sf.availableBytes
+            sText.text = "Storage: " + Formatter.formatFileSize(this, free) + " free of " +
+                Formatter.formatFileSize(this, total)
+            if (total > 0) usedFrac = (total - free).toFloat() / total.toFloat()
+        } catch (e: Exception) {
+            sText.text = "Storage"
+        }
+        val barBg = LinearLayout(this)
+        barBg.orientation = LinearLayout.HORIZONTAL
+        val bgd = GradientDrawable()
+        bgd.cornerRadius = dp(4).toFloat()
+        bgd.setColor(Color.argb(0x30, 255, 255, 255))
+        barBg.background = bgd
+        val fillV = View(this)
+        val fd = GradientDrawable()
+        fd.cornerRadius = dp(4).toFloat()
+        fd.setColor(cAccent)
+        fillV.background = fd
+        val uf = usedFrac.coerceIn(0.02f, 1f)
+        barBg.addView(fillV, lp(0, dp(6), uf))
+        barBg.addView(View(this), lp(0, dp(6), 1.02f - uf))
+        storage.addView(sText)
+        val locText = TextView(this)
+        locText.text = "Saved in: " + dlPath
+        locText.textSize = 12f
+        locText.setTextColor(cAccent)
+        locText.setPadding(0, dp(2), 0, 0)
+        storage.addView(locText)
+        val sbl = lp(mp, dp(6))
+        sbl.topMargin = dp(8)
+        storage.addView(barBg, sbl)
 
+        val chipViews = ArrayList<TextView>()
         val chipsRow = LinearLayout(this)
         chipsRow.orientation = LinearLayout.HORIZONTAL
-        chipsRow.setPadding(dp(2), dp(8), dp(2), dp(12))
-
-        fun chip(name: String, selected: Boolean): TextView {
-            val tv = TextView(this)
-            tv.text = name; tv.textSize = 13.5f
-            tv.setPadding(dp(16), dp(7), dp(16), dp(7))
-            val g = GradientDrawable()
-            g.cornerRadius = dp(18).toFloat()
-            if (selected) {
-                g.setColor(Color.parseColor("#38286E"))
-                g.setStroke(dp(1), cAccent)
-                tv.setTextColor(cAccent)
-            } else {
-                g.setColor(Color.parseColor("#1C1C28"))
-                g.setStroke(dp(1), Color.parseColor("#38384A"))
-                tv.setTextColor(Color.parseColor("#D0D0E0"))
-            }
-            tv.background = g
-            return tv
+        chipsRow.setPadding(0, dp(8), 0, dp(8))
+        for (n in arrayOf("All", "Videos", "Audio", "Other")) {
+            val c = pillTab(n)
+            chipViews.add(c)
+            chipsRow.addView(c, cellLp())
         }
 
         val sv = ScrollView(this)
@@ -836,89 +763,523 @@ class MainActivity : Activity() {
         list.setPadding(0, dp(4), 0, dp(24))
         sv.addView(list)
 
-        fun refreshList() {
+        val rows = HashMap<Long, DlRow>()
+        val last = HashMap<Long, Int>()
+        val spd = HashMap<Long, LongArray>()
+        val fmt = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault())
+
+        fun refresh() {
             list.removeAllViews()
-            chipsRow.removeAllViews()
-            val filters = listOf("All", "Videos", "Audio", "Other")
-            for ((idx, fName) in filters.withIndex()) {
-                val c = chip(fName, currentFilter == idx)
-                val clp = lp(wc, wc)
-                clp.rightMargin = dp(8)
-                c.setOnClickListener { currentFilter = idx; refreshList() }
-                chipsRow.addView(c, clp)
-            }
-
-            val filtered = downloadHist.filter { item ->
-                val name = item.name.lowercase()
-                when (currentFilter) {
-                    1 -> name.endsWith(".mp4") || name.endsWith(".mkv") || name.endsWith(".webm") || name.endsWith(".avi")
-                    2 -> name.endsWith(".mp3") || name.endsWith(".wav") || name.endsWith(".aac") || name.endsWith(".m4a")
-                    3 -> !name.endsWith(".mp4") && !name.endsWith(".mkv") && !name.endsWith(".mp3") && !name.endsWith(".wav") && !name.endsWith(".zip")
-                    else -> true
-                }
-            }
-
-            if (filtered.isEmpty()) {
+            rows.clear()
+            for ((i, c) in chipViews.withIndex()) styleTab(c, i == fcat)
+            val items = downloadHist.filter { fcat == 0 || dlCat(it.name) == fcat }
+            if (items.isEmpty()) {
                 val tv = TextView(this)
-                tv.text = "No downloads found"
+                tv.text = "No downloads yet"
                 tv.setTextColor(cGray)
                 tv.gravity = Gravity.CENTER
                 tv.setPadding(0, dp(50), 0, 0)
                 list.addView(tv)
                 return
             }
-
-            val fmt = SimpleDateFormat("dd MMM, yyyy", Locale.getDefault())
-            for (d in filtered) {
-                val row = LinearLayout(this)
-                row.orientation = LinearLayout.HORIZONTAL
-                row.gravity = Gravity.CENTER_VERTICAL
-                row.setPadding(dp(6), dp(10), dp(6), dp(10))
-
-                val iconBox = LinearLayout(this); iconBox.gravity = Gravity.CENTER
-                val ig = GradientDrawable()
-                ig.shape = GradientDrawable.RECTANGLE
-                ig.cornerRadius = dp(8).toFloat()
-                ig.setColor(Color.parseColor("#1D1836"))
-                iconBox.background = ig
-                
-                val fileIcon = IconView(this, 15); fileIcon.tint = cAccent; fileIcon.isClickable = false
-                iconBox.addView(fileIcon, lp(dp(24), dp(24)))
-
-                val details = LinearLayout(this); details.orientation = LinearLayout.VERTICAL
-                val t1 = TextView(this); t1.text = d.name; t1.textSize = 15f; t1.setTextColor(Color.WHITE); t1.maxLines = 1; t1.ellipsize = TextUtils.TruncateAt.END
-
-                val t2 = TextView(this); t2.text = fmt.format(Date(d.ms)) + "  ·  Vortex Download"
-                t2.textSize = 12f; t2.setTextColor(cGray)
-                details.addView(t1); details.addView(t2)
-
-                val delBtn = IconView(this, 7); delBtn.tint = cGray; delBtn.ratio = 0.45f
-                delBtn.setOnClickListener {
-                    downloadHist.remove(d); saveDownloads(); toast("Deleted record"); refreshList()
-                }
-
-                val lIcon = lp(dp(40), dp(40)); lIcon.rightMargin = dp(12)
-                row.addView(iconBox, lIcon); row.addView(details, lp(0, wc, 1f)); row.addView(delBtn, lp(dp(36), dp(36)))
-                row.setOnClickListener { toast("Saved in " + d.path) }
-                list.addView(row)
+            for (d in items) {
+                val st = if (d.id >= 0) queryDl(d.id) else null
+                if (st != null) last[d.id] = st[0].toInt()
+                list.addView(dlRow(d, st, fmt, rows) { refresh() })
             }
         }
 
+        for ((i, c) in chipViews.withIndex()) {
+            c.setOnClickListener {
+                fcat = i
+                refresh()
+            }
+        }
         trash.setOnClickListener {
             AlertDialog.Builder(this)
-                .setTitle("Clear all downloads")
-                .setMessage("Remove all download records from history?")
+                .setTitle("Clear download list")
+                .setMessage("Remove all items from this list? Downloaded files stay on your phone.")
                 .setPositiveButton("Clear") { _, _ ->
-                    downloadHist.clear(); saveDownloads(); refreshList(); toast("Cleared")
+                    downloadHist.clear()
+                    saveDownloads()
+                    refresh()
                 }
                 .setNegativeButton("Cancel", null)
                 .show()
         }
+        refresh()
 
-        refreshList()
-        page.addView(head); page.addView(storageLayout); page.addView(chipsRow); page.addView(sv, lp(mp, 0, 1f))
+        page.addView(head)
+        page.addView(storage)
+        page.addView(chipsRow)
+        page.addView(sv, lp(mp, 0, 1f))
         openOverlay(page)
+
+        // live progress while this page is open
+        val gen = overlayGen
+        val tick = object : Runnable {
+            override fun run() {
+                if (gen != overlayGen || overlay.visibility != View.VISIBLE) return
+                var changed = false
+                for (d in downloadHist) {
+                    val r = rows[d.id] ?: continue
+                    val st = queryDl(d.id)
+                    val code = if (st != null) st[0].toInt() else -1
+                    if (code != (last[d.id] ?: -2)) {
+                        changed = true
+                        last[d.id] = code
+                    }
+                    if (st != null) {
+                        val now = System.currentTimeMillis()
+                        val prev = spd[d.id]
+                        var speed = 0L
+                        if (prev != null && now > prev[1]) speed = ((st[1] - prev[0]) * 1000L) / (now - prev[1])
+                        if (speed < 0L) speed = 0L
+                        spd[d.id] = longArrayOf(st[1], now)
+                        r.sub.text = dlSubtitle(d, st, fmt, speed)
+                        r.bar.progress = dlPct(st)
+                    }
+                }
+                if (changed) refresh()
+                handler.postDelayed(this, 1000L)
+            }
+        }
+        handler.postDelayed(tick, 1000L)
     }
+
+
+    // ---------- Toolbar hide on scroll ----------
+
+    private fun hideToolbar() {
+        if (!toolbarShown) return
+        toolbarShown = false
+        val l = pull.layoutParams as FrameLayout.LayoutParams
+        l.topMargin = tbH
+        l.bottomMargin = -tbH
+        pull.layoutParams = l
+        toolbarGroup.animate().translationY(-tbH.toFloat()).setDuration(220)
+            .setInterpolator(DecelerateInterpolator(1.4f)).start()
+        pull.animate().translationY(-tbH.toFloat()).setDuration(220)
+            .setInterpolator(DecelerateInterpolator(1.4f)).withEndAction {
+                if (!toolbarShown) {
+                    val l2 = pull.layoutParams as FrameLayout.LayoutParams
+                    l2.topMargin = 0
+                    l2.bottomMargin = 0
+                    pull.layoutParams = l2
+                    pull.translationY = 0f
+                }
+            }.start()
+    }
+
+    private fun showToolbar() {
+        if (toolbarShown) return
+        toolbarShown = true
+        val l = pull.layoutParams as FrameLayout.LayoutParams
+        l.topMargin = tbH
+        l.bottomMargin = -tbH
+        pull.layoutParams = l
+        pull.translationY = -tbH.toFloat()
+        pull.animate().translationY(0f).setDuration(220)
+            .setInterpolator(DecelerateInterpolator(1.4f)).withEndAction {
+                if (toolbarShown) {
+                    val l2 = pull.layoutParams as FrameLayout.LayoutParams
+                    l2.bottomMargin = 0
+                    pull.layoutParams = l2
+                }
+            }.start()
+        toolbarGroup.animate().translationY(0f).setDuration(220)
+            .setInterpolator(DecelerateInterpolator(1.4f)).start()
+    }
+
+    // ---------- Fullscreen video player ----------
+
+    private val vJsInit = """
+(function(){
+  if(window.__vxV) return;
+  function find(doc,depth){
+    var best=null;
+    try{
+      var vs=doc.querySelectorAll('video');
+      for(var i=0;i<vs.length;i++){
+        var v=vs[i];
+        if(!best||(!v.paused&&best.paused)||((v.duration||0)>(best.duration||0)&&v.paused===best.paused)) best=v;
+      }
+      if(depth<3){
+        var fr=doc.querySelectorAll('iframe');
+        for(var j=0;j<fr.length;j++){
+          try{
+            var d=fr[j].contentDocument;
+            if(d){var b=find(d,depth+1); if(b&&(!best||(!b.paused&&best.paused))) best=b;}
+          }catch(e){}
+        }
+      }
+    }catch(e){}
+    return best;
+  }
+  window.__vxV=function(){return find(document,0);};
+})();
+"""
+
+    private fun fsChip(text: String, click: () -> Unit): TextView {
+        val tv = TextView(this)
+        tv.text = text
+        tv.textSize = 12.5f
+        tv.setTextColor(Color.WHITE)
+        tv.gravity = Gravity.CENTER
+        tv.setPadding(dp(12), dp(7), dp(12), dp(7))
+        tv.background = glass(16, 0x38, 0x18)
+        pressAnim(tv)
+        tv.setOnClickListener { click() }
+        return tv
+    }
+
+    private fun buildFullscreenUi(frame: FrameLayout) {
+        fs = FrameLayout(this)
+        fs.setBackgroundColor(Color.BLACK)
+        fs.visibility = View.GONE
+
+        fsTop = LinearLayout(this)
+        fsTop.orientation = LinearLayout.HORIZONTAL
+        fsTop.gravity = Gravity.CENTER_VERTICAL
+        fsTop.setPadding(dp(14), dp(10), dp(14), dp(18))
+        fsTop.background = GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(Color.argb(200, 0, 0, 0), Color.TRANSPARENT)
+        )
+
+        val back = IconView(this, 0)
+        back.tint = Color.WHITE
+        back.setOnClickListener { exitFullscreen() }
+
+        fsTitle = TextView(this)
+        fsTitle.setTextColor(Color.WHITE)
+        fsTitle.textSize = 14f
+        fsTitle.setSingleLine()
+        fsTitle.ellipsize = TextUtils.TruncateAt.END
+        fsTitle.setPadding(dp(8), 0, dp(8), 0)
+
+        val skip = fsChip("+85s") {
+            videoJs("v.currentTime=Math.min(v.duration||1e9,v.currentTime+85)")
+            showHud("+85s", -1)
+        }
+        fsFit = fsChip("Fit") { cycleFit() }
+        fsSpeed = fsChip("1.0x") { cycleSpeed() }
+        val rot = IconView(this, 26)
+        rot.tint = Color.WHITE
+        rot.setOnClickListener { cycleRotation() }
+
+        fsTop.addView(back, lp(dp(44), dp(44)))
+        fsTop.addView(fsTitle, lp(0, wc, 1f))
+        val c1 = lp(wc, wc)
+        c1.leftMargin = dp(6)
+        fsTop.addView(skip, c1)
+        val c2 = lp(wc, wc)
+        c2.leftMargin = dp(6)
+        fsTop.addView(fsFit, c2)
+        val c3 = lp(wc, wc)
+        c3.leftMargin = dp(6)
+        fsTop.addView(fsSpeed, c3)
+        fsTop.addView(rot, lp(dp(44), dp(44)))
+        fs.addView(fsTop, FrameLayout.LayoutParams(mp, wc, Gravity.TOP))
+
+        hudBox = LinearLayout(this)
+        hudBox.orientation = LinearLayout.VERTICAL
+        hudBox.gravity = Gravity.CENTER_HORIZONTAL
+        hudBox.setPadding(dp(22), dp(14), dp(22), dp(14))
+        val hb = GradientDrawable()
+        hb.setColor(Color.argb(190, 12, 10, 28))
+        hb.cornerRadius = dp(18).toFloat()
+        hb.setStroke(dp(1), Color.argb(0x40, 255, 255, 255))
+        hudBox.background = hb
+        hudText = TextView(this)
+        hudText.setTextColor(Color.WHITE)
+        hudText.textSize = 15f
+        hudText.gravity = Gravity.CENTER
+        hudBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal)
+        hudBar.max = 100
+        hudBar.progressTintList = ColorStateList.valueOf(cAccent)
+        hudBox.addView(hudText)
+        val hbl = lp(dp(150), dp(4))
+        hbl.topMargin = dp(10)
+        hudBox.addView(hudBar, hbl)
+        hudBox.visibility = View.GONE
+        fs.addView(hudBox, FrameLayout.LayoutParams(wc, wc, Gravity.CENTER))
+
+        frame.addView(fs, FrameLayout.LayoutParams(mp, mp))
+    }
+
+    private fun showHud(text: String, pct: Int) {
+        hudText.text = text
+        if (pct >= 0) {
+            hudBar.visibility = View.VISIBLE
+            hudBar.progress = pct
+        } else {
+            hudBar.visibility = View.GONE
+        }
+        hudBox.animate().cancel()
+        hudBox.visibility = View.VISIBLE
+        hudBox.alpha = 1f
+        hudRunnable?.let { handler.removeCallbacks(it) }
+        val r = Runnable {
+            hudBox.animate().alpha(0f).setDuration(220).withEndAction {
+                hudBox.visibility = View.GONE
+            }.start()
+        }
+        hudRunnable = r
+        handler.postDelayed(r, 900L)
+    }
+
+    private fun videoJs(body: String) {
+        val w = tabs.getOrNull(cur) ?: return
+        val js = vJsInit + "(function(){var v=window.__vxV();if(!v)return 'no';" + body + ";return 'ok';})()"
+        w.evaluateJavascript(js) { r ->
+            if (r != null && r.contains("no") && !fsNoJsToast) {
+                fsNoJsToast = true
+                toast("This player blocks seek/speed control. Use the site's own controls.")
+            }
+        }
+    }
+
+    private fun cycleSpeed() {
+        speedIdx = (speedIdx + 1) % speeds.size
+        val s = speeds[speedIdx]
+        fsSpeed.text = s.toString() + "x"
+        videoJs("v.playbackRate=" + s)
+        showHud("Speed " + s + "x", -1)
+    }
+
+    private fun cycleFit() {
+        fitIdx = (fitIdx + 1) % fits.size
+        fsFit.text = fits[fitIdx]
+        val css = if (fitIdx == 0) "contain" else if (fitIdx == 1) "cover" else "fill"
+        videoJs("v.style.objectFit='" + css + "'")
+        showHud(fits[fitIdx], -1)
+    }
+
+    private fun cycleRotation() {
+        fsOrient = (fsOrient + 1) % 3
+        requestedOrientation = when (fsOrient) {
+            0 -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            1 -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            else -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+        showHud(if (fsOrient == 0) "Landscape" else if (fsOrient == 1) "Portrait" else "Auto rotate", -1)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun applyImmersive(on: Boolean) {
+        val d = window.decorView
+        if (on) {
+            d.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+        } else {
+            d.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+        }
+    }
+
+    private fun scheduleBarHide() {
+        barRunnable?.let { handler.removeCallbacks(it) }
+        val r = Runnable {
+            fsTop.animate().alpha(0f).setDuration(200).withEndAction {
+                if (fsTop.alpha < 0.1f) fsTop.visibility = View.GONE
+            }.start()
+        }
+        barRunnable = r
+        handler.postDelayed(r, 3500L)
+    }
+
+    private fun toggleBar() {
+        if (fsTop.visibility == View.VISIBLE && fsTop.alpha > 0.5f) {
+            barRunnable?.let { handler.removeCallbacks(it) }
+            fsTop.animate().alpha(0f).setDuration(200).withEndAction {
+                if (fsTop.alpha < 0.1f) fsTop.visibility = View.GONE
+            }.start()
+        } else {
+            fsTop.animate().cancel()
+            fsTop.visibility = View.VISIBLE
+            fsTop.animate().alpha(1f).setDuration(200).start()
+            scheduleBarHide()
+        }
+    }
+
+    private fun enterFullscreen(view: View, cb: WebChromeClient.CustomViewCallback) {
+        if (fsView != null) {
+            cb.onCustomViewHidden()
+            return
+        }
+        fsView = view
+        fsCallback = cb
+        fsOrient = 0
+        speedIdx = 1
+        fitIdx = 0
+        fsNoJsToast = false
+        fsSpeed.text = "1.0x"
+        fsFit.text = fits[0]
+        fsTitle.text = tabs.getOrNull(cur)?.title ?: ""
+        fs.addView(view, 0, FrameLayout.LayoutParams(mp, mp))
+        fs.visibility = View.VISIBLE
+        fs.alpha = 0f
+        fs.animate().alpha(1f).setDuration(220).start()
+        fsTop.animate().cancel()
+        fsTop.visibility = View.VISIBLE
+        fsTop.alpha = 1f
+        scheduleBarHide()
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        val a = window.attributes
+        oldBrightness = a.screenBrightness
+        if (Build.VERSION.SDK_INT >= 28) {
+            a.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+        window.attributes = a
+        applyImmersive(true)
+    }
+
+    private fun exitFullscreen() {
+        val v = fsView ?: return
+        val cb = fsCallback
+        fsView = null
+        fsCallback = null
+        hudRunnable?.let { handler.removeCallbacks(it) }
+        barRunnable?.let { handler.removeCallbacks(it) }
+        hudBox.visibility = View.GONE
+        fs.removeView(v)
+        fs.visibility = View.GONE
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        val a = window.attributes
+        a.screenBrightness = oldBrightness
+        if (Build.VERSION.SDK_INT >= 28) {
+            a.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
+        }
+        window.attributes = a
+        applyImmersive(false)
+        cb?.onCustomViewHidden()
+    }
+
+    // swipe: right side = brightness, left side = volume. double tap: left/right = seek 10s, center = play/pause
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (fsView != null && videoTouch(ev)) return true
+        return super.dispatchTouchEvent(ev)
+    }
+
+    private fun videoTouch(ev: MotionEvent): Boolean {
+        val w = fs.width.toFloat()
+        val h = fs.height.toFloat()
+        if (w <= 0f || h <= 0f) return false
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                gDownX = ev.x
+                gDownY = ev.y
+                gActive = false
+                gMode = 0
+                dtActive = false
+                downMs = ev.eventTime
+                if (fsTop.visibility == View.VISIBLE && ev.y < fsTop.height) {
+                    gSkip = true
+                    return false
+                }
+                gSkip = false
+                if (ev.eventTime - lastTapMs < 300L && Math.abs(ev.x - lastTapX) < dp(80)) {
+                    lastTapMs = 0L
+                    dtActive = true
+                    onDoubleTap(ev.x, w)
+                    return true
+                }
+                return false
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (dtActive) return true
+                if (gSkip) return false
+                if (!gActive) {
+                    val dx = ev.x - gDownX
+                    val dy = ev.y - gDownY
+                    if (Math.abs(dy) > dp(14) && Math.abs(dy) > Math.abs(dx) * 1.4f) {
+                        gActive = true
+                        gMode = if (gDownX > w / 2f) 2 else 1
+                        val c = MotionEvent.obtain(ev)
+                        c.action = MotionEvent.ACTION_CANCEL
+                        super.dispatchTouchEvent(c)
+                        c.recycle()
+                        gStartVal = if (gMode == 2) curBrightness() else curVolumeFrac()
+                    } else {
+                        return false
+                    }
+                }
+                val frac = (gDownY - ev.y) / (h * 0.75f)
+                val nv = (gStartVal + frac).coerceIn(0f, 1f)
+                if (gMode == 2) setBrightness(nv) else setVolumeFrac(nv)
+                return true
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (dtActive) {
+                    dtActive = false
+                    return true
+                }
+                if (gSkip) return false
+                if (gActive) {
+                    gActive = false
+                    return true
+                }
+                if (ev.actionMasked == MotionEvent.ACTION_UP && ev.eventTime - downMs < 250L &&
+                    Math.abs(ev.x - gDownX) < dp(12) && Math.abs(ev.y - gDownY) < dp(12)
+                ) {
+                    lastTapMs = ev.eventTime
+                    lastTapX = ev.x
+                    toggleBar()
+                }
+                return false
+            }
+        }
+        return false
+    }
+
+    private fun onDoubleTap(x: Float, w: Float) {
+        if (x < w * 0.35f) {
+            videoJs("v.currentTime=Math.max(0,v.currentTime-10)")
+            showHud("-10s", -1)
+        } else if (x > w * 0.65f) {
+            videoJs("v.currentTime=Math.min(v.duration||1e9,v.currentTime+10)")
+            showHud("+10s", -1)
+        } else {
+            videoJs("if(v.paused){v.play()}else{v.pause()}")
+            showHud("Play / Pause", -1)
+        }
+    }
+
+    private fun curBrightness(): Float {
+        val b = window.attributes.screenBrightness
+        if (b >= 0f) return b
+        return try {
+            Settings.System.getInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS) / 255f
+        } catch (e: Exception) {
+            0.5f
+        }
+    }
+
+    private fun setBrightness(v: Float) {
+        val nv = v.coerceIn(0.02f, 1f)
+        val a = window.attributes
+        a.screenBrightness = nv
+        window.attributes = a
+        showHud("Brightness " + (nv * 100).toInt() + "%", (nv * 100).toInt())
+    }
+
+    private fun curVolumeFrac(): Float {
+        val am = getSystemService(AUDIO_SERVICE) as AudioManager
+        val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        if (max <= 0) return 0f
+        return am.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / max.toFloat()
+    }
+
+    private fun setVolumeFrac(v: Float) {
+        val am = getSystemService(AUDIO_SERVICE) as AudioManager
+        val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        am.setStreamVolume(AudioManager.STREAM_MUSIC, Math.round(v * max), 0)
+        showHud("Volume " + (v * 100).toInt() + "%", (v * 100).toInt())
+    }
+
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
     private fun lp(w: Int, h: Int, weight: Float = 0f) = LinearLayout.LayoutParams(w, h, weight)
@@ -991,8 +1352,7 @@ class MainActivity : Activity() {
     @SuppressLint("ClickableViewAccessibility")
     private fun buildUi() {
         val frame = FrameLayout(this)
-        val main = LinearLayout(this)
-        main.orientation = LinearLayout.VERTICAL
+        val main = FrameLayout(this)
         main.background = bgGradient()
 
         val toolbar = LinearLayout(this)
@@ -1066,17 +1426,24 @@ class MainActivity : Activity() {
             }
         }
 
-        chromeViews = listOf(toolbar, line, progress)
-        main.addView(toolbar)
-        main.addView(line, lp(mp, dp(1)))
-        main.addView(progress, lp(mp, dp(2)))
-        main.addView(pull, lp(mp, 0, 1f))
+        tbH = dp(57)
+        toolbarGroup = LinearLayout(this)
+        toolbarGroup.orientation = LinearLayout.VERTICAL
+        toolbarGroup.addView(toolbar, lp(mp, dp(56)))
+        toolbarGroup.addView(line, lp(mp, dp(1)))
+
+        pull.addView(progress, FrameLayout.LayoutParams(mp, dp(2)))
+        val pullLp = FrameLayout.LayoutParams(mp, mp)
+        pullLp.topMargin = tbH
+        main.addView(pull, pullLp)
+        main.addView(toolbarGroup, FrameLayout.LayoutParams(mp, tbH))
 
         overlay = FrameLayout(this)
         overlay.visibility = View.GONE
 
         frame.addView(main, FrameLayout.LayoutParams(mp, mp))
         frame.addView(overlay, FrameLayout.LayoutParams(mp, mp))
+        buildFullscreenUi(frame)
         setContentView(frame)
     }
 
@@ -1431,7 +1798,140 @@ class MainActivity : Activity() {
         w.loadDataWithBaseURL(homeUrl, homeHtml(), "text/html", "utf-8", homeUrl)
     }
 
-    private fun homeHtml(): String = buildHomeHtml(showGreeting)
+    private fun homeHtml(): String {
+        val greetDiv = if (showGreeting) "<div id=\"clock\" class=\"a2\"></div>" else ""
+        return """
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vortex</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:sans-serif;color:#fff;background:#07070c;min-height:100vh;overflow-x:hidden}
+.waves{position:fixed;left:0;top:0;width:100%;height:100%;z-index:0;pointer-events:none}
+.wrap{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;padding:42px 16px 40px}
+.glass{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,.15);box-shadow:0 8px 24px rgba(0,0,0,.35)}
+@keyframes up{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+.a1{animation:up .6s .02s both}.a2{animation:up .6s .10s both}.a3{animation:up .6s .18s both}.a4{animation:up .6s .26s both}.a5{animation:up .6s .34s both}
+.logo{font-size:30px;font-weight:500;letter-spacing:15px;padding-left:15px;color:#f1f1fa}
+.logo span{color:#9a6bff}
+.ul{width:60px;height:3px;border-radius:2px;background:linear-gradient(90deg,#7c5cff,#b18cff);margin-top:12px}
+#clock{margin-top:16px;font-size:17px;color:#a9a9c4}
+.sb{margin-top:26px;width:100%;max-width:520px;height:58px;border-radius:29px;display:flex;align-items:center;padding:0 10px 0 16px;gap:12px}
+.sb .ph{flex:1;font-size:17px;color:rgba(255,255,255,.55)}
+.sb svg{flex:none}
+.sb .dv{width:1px;height:24px;background:rgba(255,255,255,.15)}
+.sb .ic{display:flex;align-items:center;justify-content:center;width:36px;height:36px}
+.grid{margin-top:30px;display:grid;grid-template-columns:repeat(4,1fr);gap:20px 6px;width:100%;max-width:520px}
+.sc{display:flex;flex-direction:column;align-items:center;gap:9px;color:#dcdcec;text-decoration:none;font-size:13px;transition:transform .15s}
+.sc:active{transform:scale(.92)}
+.sc i{width:58px;height:58px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.sc svg{width:28px;height:28px}
+.card{margin-top:30px;width:100%;max-width:520px;border-radius:26px;padding:6px 16px 12px}
+.ch{display:flex;align-items:center;gap:12px;padding:12px 0}
+.ch b{flex:1;font-weight:500;font-size:19px}
+.ib{display:flex;align-items:center;justify-content:center;width:34px;height:34px;color:#c9c9de;text-decoration:none}
+@keyframes sp{to{transform:rotate(360deg)}}
+.spin svg{animation:sp .9s linear infinite}
+.it{display:block;padding:14px 2px;border-top:1px solid rgba(255,255,255,.08);color:#fff;text-decoration:none}
+.it b{display:block;font-weight:500;font-size:15.5px;line-height:1.4}
+.meta{margin-top:9px;font-size:12px;color:#9a9ab5;display:flex;align-items:center;gap:8px}
+.meta span:nth-child(2){flex:1}
+.av{width:20px;height:20px;border-radius:50%;background:rgba(154,134,255,.25);color:#cbbcff;display:flex;align-items:center;justify-content:center;font-size:11px}
+.shr{display:flex;width:30px;height:24px;align-items:center;justify-content:flex-end;font-style:normal}
+@keyframes sh{0%{opacity:.35}50%{opacity:.7}100%{opacity:.35}}
+.sk{height:56px;border-radius:12px;background:rgba(255,255,255,.08);margin:10px 0;animation:sh 1.3s infinite}
+.err{padding:22px 4px;color:#9a9ab5;font-size:14px;text-align:center}
+</style></head><body>
+<svg class="waves" viewBox="0 0 400 800" preserveAspectRatio="none">
+<defs>
+<linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7c5cff" stop-opacity="0"/><stop offset="1" stop-color="#7c5cff" stop-opacity=".38"/></linearGradient>
+<linearGradient id="g2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9a6bff" stop-opacity="0"/><stop offset="1" stop-color="#9a6bff" stop-opacity=".24"/></linearGradient>
+<linearGradient id="fl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b18cff"/><stop offset="1" stop-color="#6a3cff"/></linearGradient>
+</defs>
+<path d="M-20,130 C80,70 200,180 420,50 L420,-20 L-20,-20 Z" fill="url(#g1)"/>
+<path d="M-20,200 C110,120 240,220 420,110 L420,-20 L-20,-20 Z" fill="url(#g2)"/>
+<path d="M-20,690 C100,650 230,750 420,670 L420,820 L-20,820 Z" fill="url(#g1)"/>
+<path d="M-20,745 C130,700 250,790 420,730 L420,820 L-20,820 Z" fill="url(#g2)"/>
+</svg>
+<div class="wrap">
+<div class="logo a1">VORTE<span>X</span></div>
+<div class="ul a1"></div>
+$greetDiv
+<div class="sb glass a3" onclick="location.href='vortex://search'">
+<svg width="26" height="26" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+<span class="ph">Search or enter URL</span>
+<span class="ic" onclick="event.stopPropagation();location.href='vortex://voice'"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4M8 22h8"/></svg></span>
+<span class="dv"></span>
+<span class="ic" onclick="event.stopPropagation();location.href='https://lens.google.com/'"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><circle cx="12" cy="12" r="3.5"/></svg></span>
+</div>
+<div class="grid a4">
+<a class="sc" href="https://m.youtube.com"><i class="glass"><svg viewBox="0 0 24 24"><rect x="1" y="4.5" width="22" height="15" rx="4.5" fill="#FF0000"/><path d="M10 8.8l5.2 3.2L10 15.2z" fill="#fff"/></svg></i>YouTube</a>
+<a class="sc" href="https://www.google.com"><i class="glass"><svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg></i>Google</a>
+<a class="sc" href="https://github.com"><i class="glass"><svg viewBox="0 0 16 16" fill="#fff"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></i>GitHub</a>
+<a class="sc" href="https://m.facebook.com"><i class="glass"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#1877F2"/><path d="M13.5 22v-8h2.7l.5-3.2h-3.2V8.7c0-.9.4-1.7 1.8-1.7h1.5V4.2S15.9 4 14.7 4c-2.5 0-4.2 1.5-4.2 4.3v2.5H7.8V14h2.7v8z" fill="#fff"/></svg></i>Facebook</a>
+<a class="sc" href="https://en.wikipedia.org"><i class="glass"><svg viewBox="0 0 24 24"><text x="12" y="18.5" text-anchor="middle" font-family="serif" font-weight="bold" font-size="20" fill="#fff">W</text></svg></i>Wikipedia</a>
+<a class="sc" href="https://x.com"><i class="glass"><svg viewBox="0 0 24 24" fill="#fff"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></i>X</a>
+<a class="sc" href="https://www.reddit.com"><i class="glass"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#FF4500"/><circle cx="5.4" cy="11.6" r="1.7" fill="#fff"/><circle cx="18.6" cy="11.6" r="1.7" fill="#fff"/><ellipse cx="12" cy="14" rx="6.6" ry="4.6" fill="#fff"/><circle cx="9.6" cy="13.4" r="1.2" fill="#FF4500"/><circle cx="14.4" cy="13.4" r="1.2" fill="#FF4500"/><circle cx="17.6" cy="5.6" r="1.3" fill="#fff"/><path d="M12 9.5l.9-4.1 3.6.8" stroke="#fff" stroke-width="1" fill="none"/></svg></i>Reddit</a>
+<a class="sc" href="https://mail.google.com"><i class="glass"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 7l8.5 6.2L20.5 7" stroke="#EA4335" stroke-width="3"/><path d="M3.5 7v11" stroke="#4285F4" stroke-width="3"/><path d="M20.5 7v11" stroke="#34A853" stroke-width="3"/></svg></i>Gmail</a>
+</div>
+<div class="card glass a5">
+<div class="ch">
+<svg width="26" height="26" viewBox="0 0 24 24"><path d="M12 2c1 3-1 4.5-2.5 6.5C8 10.5 7 12 7 14.5A5 5 0 0 0 17 14.5c0-2-1-3.2-2-4.5 0 1.2-.6 2-1.4 2.4C14 9.5 13.5 5 12 2z" fill="url(#fl)"/></svg>
+<b>Discover</b>
+<a class="ib" id="rf" href="vortex://feed" onclick="this.classList.add('spin')"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg></a>
+<a class="ib" href="vortex://feedlang"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg></a>
+</div>
+<div id="feed"><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>
+</div>
+</div>
+<script>
+function greet(h){
+  if(h>=5&&h<12) return 'Good morning';
+  if(h>=12&&h<17) return 'Good afternoon';
+  if(h>=17&&h<20) return 'Good evening';
+  return 'Good night';
+}
+function tick(){
+  var c=document.getElementById('clock');
+  if(!c) return;
+  var d=new Date();
+  c.textContent=greet(d.getHours())+' | '+d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+}
+tick(); setInterval(tick,20000);
+function ago(ms){
+  var m=Math.floor((Date.now()-ms)/60000);
+  if(m<1) return 'now';
+  if(m<60) return m+'m ago';
+  var h=Math.floor(m/60);
+  if(h<24) return h+'h ago';
+  return Math.floor(h/24)+'d ago';
+}
+var SHARE='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9a9ab5" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="12" r="2.4"/><circle cx="18" cy="6" r="2.4"/><circle cx="18" cy="18" r="2.4"/><path d="M8.2 11L15.8 7M8.2 13L15.8 17"/></svg>';
+window.vxFeed=function(json){
+  var items;
+  try{ items=JSON.parse(json); }catch(e){ return; }
+  var f=document.getElementById('feed');
+  f.innerHTML='';
+  var rf=document.getElementById('rf'); if(rf) rf.classList.remove('spin');
+  items.forEach(function(x){
+    var a=document.createElement('a'); a.className='it'; a.href=x.l;
+    var b=document.createElement('b'); b.textContent=x.t; a.appendChild(b);
+    var m=document.createElement('div'); m.className='meta';
+    var av=document.createElement('span'); av.className='av'; av.textContent=(x.s||'?').charAt(0).toUpperCase(); m.appendChild(av);
+    var sp=document.createElement('span'); sp.textContent=(x.s||'')+(x.m?' \u00b7 '+ago(x.m):''); m.appendChild(sp);
+    var sh=document.createElement('i'); sh.className='shr'; sh.innerHTML=SHARE;
+    sh.onclick=function(ev){ ev.preventDefault(); ev.stopPropagation(); location.href='vortex://share?u='+encodeURIComponent(x.l); };
+    m.appendChild(sh); a.appendChild(m); f.appendChild(a);
+  });
+};
+window.vxFeedErr=function(){
+  var rf=document.getElementById('rf'); if(rf) rf.classList.remove('spin');
+  var f=document.getElementById('feed');
+  if(f.querySelector('.sk')) f.innerHTML='<div class="err">Could not load news. Pull down to retry.</div>';
+};
+</script></body></html>
+"""
+    }
 
     private fun feedJs(js: String) {
         for (w in tabs) {
@@ -1559,7 +2059,6 @@ class MainActivity : Activity() {
     private fun dohBlocked(host: String): Boolean {
         val cached = dnsCache[host]
         if (cached != null) return cached
-        if (System.currentTimeMillis() < dohDownUntil) return false
         var ok = false; var result = false
         try {
             val out = ByteArrayOutputStream()
@@ -1572,7 +2071,7 @@ class MainActivity : Activity() {
             out.write(0)
             out.write(byteArrayOf(0x00, 0x01, 0x00, 0x01))
             val con = URL(dohUrl).openConnection() as HttpURLConnection
-            con.requestMethod = "POST"; con.connectTimeout = 1500; con.readTimeout = 1500; con.doOutput = true
+            con.requestMethod = "POST"; con.connectTimeout = 2500; con.readTimeout = 2500; con.doOutput = true
             con.setRequestProperty("Content-Type", "application/dns-message")
             con.setRequestProperty("Accept", "application/dns-message")
             con.outputStream.use { it.write(out.toByteArray()) }
@@ -1582,7 +2081,7 @@ class MainActivity : Activity() {
             }
             con.disconnect()
         } catch (e: Exception) {}
-        if (ok) dnsCache[host] = result else dohDownUntil = System.currentTimeMillis() + 60000L
+        if (ok) dnsCache[host] = result
         return result
     }
 
@@ -1733,339 +2232,4 @@ class MainActivity : Activity() {
         val head = LinearLayout(this); head.orientation = LinearLayout.HORIZONTAL; head.gravity = Gravity.CENTER_VERTICAL
         head.setPadding(dp(6), 0, dp(6), dp(18))
 
-        val logoId = resources.getIdentifier("logo", "drawable", packageName)
-        if (logoId != 0) {
-            val iv = ImageView(this); iv.setImageResource(logoId)
-            head.addView(iv, lp(dp(56), dp(56)))
-        }
-
-        val titles = LinearLayout(this); titles.orientation = LinearLayout.VERTICAL; titles.setPadding(dp(12), 0, 0, 0)
-        val nameRow = LinearLayout(this); nameRow.orientation = LinearLayout.HORIZONTAL
-        val n1 = TextView(this); n1.text = "Vortex"; n1.textSize = 21f; n1.setTextColor(cAccent)
-        val n2 = TextView(this); n2.text = " Browser"; n2.textSize = 21f; n2.setTextColor(Color.WHITE)
-        nameRow.addView(n1); nameRow.addView(n2)
-        val subT = TextView(this); subT.text = "Toolbox"; subT.textSize = 13f; subT.setTextColor(cGray)
-        titles.addView(nameRow); titles.addView(subT)
-
-        val close = IconView(this, 7)
-        close.setOnClickListener { closeOverlay() }
-
-        head.addView(titles, lp(0, wc, 1f)); head.addView(close, lp(dp(44), dp(44)))
-        col.addView(head)
-
-        val tools = listOf(
-            Tool(10, "Ad Blocker", "AdGuard DNS: " + onOff(adblock)) { adblock = !adblock; tabs[cur].reload() },
-            Tool(11, "Incognito Mode", "Browse privately") { newTab("home", true) },
-            Tool(13, "Screenshot", "Capture screen") { screenshot() },
-            Tool(14, "Desktop Mode", "Desktop site: " + onOff(desktop)) { toggleDesktop() },
-            Tool(15, "Download History", "Check your downloads") { showDownloadsPage() },
-            Tool(16, "Share Page", "Share current page") { sharePage() },
-            Tool(19, "Site Injector", "Custom CSS/JS for this site") { editSiteRule() },
-            Tool(6, "Search Engine", engines[engineIdx].first) { cycleEngine() },
-            Tool(23, "History", "Websites and searches") { showHistory(false) },
-            Tool(24, "Clear History", "Delete browsing data") { showClearDialog() },
-            Tool(26, "Install App", "Create home shortcut") { installShortcut() },
-            Tool(25, "Help & Feedback", "Message the developer") { showHelp() }
-        )
-
-        val tileViews = ArrayList<View>()
-        for (pair in tools.chunked(2)) {
-            val row = LinearLayout(this); row.orientation = LinearLayout.HORIZONTAL
-            for (tool in pair) {
-                val tv = tile(tool)
-                tileViews.add(tv)
-                row.addView(tv, cellLp())
-            }
-            if (pair.size == 1) row.addView(View(this), cellLp())
-            col.addView(row)
-        }
-
-        val foot = TextView(this)
-        foot.text = "Vortex Tools"; foot.gravity = Gravity.CENTER; foot.textSize = 15f; foot.setTextColor(cAccent)
-        foot.background = glass(28, 0x30, 0x14)
-        val fl = lp(mp, dp(52)); fl.setMargins(dp(6), dp(18), dp(6), 0)
-        col.addView(foot, fl)
-
-        sv.addView(col)
-        openOverlay(sv)
-        staggerIn(tileViews)
-    }
-
-    private fun tile(tool: Tool): View {
-        val card = LinearLayout(this); card.orientation = LinearLayout.VERTICAL
-        card.setPadding(dp(16), dp(14), dp(12), dp(14)); card.background = glass(20)
-
-        val top = LinearLayout(this); top.orientation = LinearLayout.HORIZONTAL; top.gravity = Gravity.CENTER_VERTICAL
-        val ic = IconView(this, tool.kind); ic.tint = cAccent; ic.ratio = 0.6f; ic.isClickable = false
-        val gap = View(this)
-        val ch = IconView(this, 8); ch.tint = cAccent; ch.isClickable = false
-        top.addView(ic, lp(dp(52), dp(52))); top.addView(gap, lp(0, 1, 1f)); top.addView(ch, lp(dp(28), dp(28)))
-
-        val t1 = TextView(this); t1.text = tool.title; t1.textSize = 16f; t1.setTextColor(Color.WHITE)
-        val t2 = TextView(this); t2.text = tool.sub; t2.textSize = 12f; t2.setTextColor(cGray)
-
-        card.addView(top)
-        val tl = lp(mp, wc); tl.topMargin = dp(8)
-        card.addView(t1, tl); card.addView(t2)
-        pressAnim(card)
-        card.setOnClickListener { closeOverlay(); tool.action() }
-        return card
-    }
-
-    private fun captureThumb(w: WebView) {
-        if (w.width <= 0 || w.height <= 0) return
-        try {
-            val sc = 0.4f
-            val bmp = Bitmap.createBitmap((w.width * sc).toInt(), (w.height * sc).toInt(), Bitmap.Config.ARGB_8888)
-            val c = Canvas(bmp); c.scale(sc, sc); w.draw(c)
-            thumbs[w] = bmp
-        } catch (e: Exception) {}
-    }
-
-    private fun showTabsPage() {
-        tabs.getOrNull(cur)?.let { captureThumb(it) }
-        val page = LinearLayout(this); page.orientation = LinearLayout.VERTICAL; page.background = bgGradient()
-
-        val head = LinearLayout(this); head.orientation = LinearLayout.HORIZONTAL; head.gravity = Gravity.CENTER_VERTICAL
-        head.setPadding(dp(18), dp(24), dp(10), dp(10))
-        val title = TextView(this); title.text = "Tabs (" + tabs.size + ")"; title.textSize = 20f; title.setTextColor(Color.WHITE)
-        val add = IconView(this, 9); add.tint = cAccent; add.setOnClickListener { closeOverlay(); newTab("home") }
-        val close = IconView(this, 7); close.setOnClickListener { closeOverlay() }
-        head.addView(title, lp(0, wc, 1f)); head.addView(add, lp(dp(44), dp(44))); head.addView(close, lp(dp(44), dp(44)))
-
-        val sv = ScrollView(this)
-        val col = LinearLayout(this); col.orientation = LinearLayout.VERTICAL; col.setPadding(dp(10), dp(4), dp(10), dp(24))
-        val cards = ArrayList<View>()
-        for (pair in tabs.indices.toList().chunked(2)) {
-            val row = LinearLayout(this); row.orientation = LinearLayout.HORIZONTAL
-            for (i in pair) {
-                val cv = tabCard(i); cards.add(cv); row.addView(cv, cellLp())
-            }
-            if (pair.size == 1) row.addView(View(this), cellLp())
-            col.addView(row)
-        }
-        sv.addView(col)
-        page.addView(head); page.addView(sv, lp(mp, 0, 1f))
-        openOverlay(page)
-        staggerIn(cards)
-    }
-
-    private fun tabCard(i: Int): View {
-        val w = tabs[i]
-        val card = LinearLayout(this); card.orientation = LinearLayout.VERTICAL; card.setPadding(dp(8), dp(8), dp(8), dp(8))
-        val bg = glass(16)
-        if (i == cur) bg.setStroke(dp(2), cAccent)
-        card.background = bg
-
-        val raw = w.title; val host = hostOf(w.url)
-        var name = if (shown(w.url).isEmpty()) "Home" else if (!raw.isNullOrBlank()) raw else (host ?: "Tab")
-        if (incog.contains(w)) name = "Incognito: " + name
-
-        val head = LinearLayout(this); head.orientation = LinearLayout.HORIZONTAL; head.gravity = Gravity.CENTER_VERTICAL
-        val tv = TextView(this); tv.text = name; tv.textSize = 12f; tv.setTextColor(Color.WHITE); tv.maxLines = 1; tv.ellipsize = TextUtils.TruncateAt.END; tv.setPadding(dp(4), 0, 0, 0)
-        val x = IconView(this, 7); x.ratio = 0.5f; x.setOnClickListener { closeTabAt(i); showTabsPage() }
-        head.addView(tv, lp(0, wc, 1f)); head.addView(x, lp(dp(32), dp(32)))
-
-        val iv = ImageView(this); iv.scaleType = ImageView.ScaleType.CENTER_CROP; iv.setBackgroundColor(cBg)
-        val th = thumbs[w]
-        if (th != null) iv.setImageBitmap(th)
-
-        card.addView(head); card.addView(iv, lp(mp, dp(150)))
-        pressAnim(card)
-        card.setOnClickListener { closeOverlay(); switchTo(i) }
-        return card
-    }
-
-    @SuppressLint("SetJavaScriptEnabled")
-    private fun newTab(url: String, incognito: Boolean = false) {
-        val w = WebView(this)
-        w.setBackgroundColor(cBg)
-        val s = w.settings
-        s.javaScriptEnabled = true
-        s.domStorageEnabled = true
-        s.builtInZoomControls = true
-        s.displayZoomControls = false
-        s.loadWithOverviewMode = true
-        s.useWideViewPort = true
-        s.mediaPlaybackRequiresUserGesture = false
-        w.overScrollMode = View.OVER_SCROLL_NEVER
-        w.addJavascriptInterface(MediaBridge(w), "VortexMedia")
-        if (desktop) s.userAgentString = desktopUa
-        if (incognito) {
-            incog.add(w)
-            s.cacheMode = WebSettings.LOAD_NO_CACHE
-            s.saveFormData = false
-        }
-
-        w.webViewClient = object : WebViewClient() {
-            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-                val u = request.url.toString()
-                if (u.startsWith("vortex://")) { handleVortex(u); return true }
-                return false
-            }
-
-            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
-                if (adblock && !request.isForMainFrame) {
-                    val sch = request.url.scheme
-                    val host = request.url.host ?: ""
-                    val isIp = host.all { it.isDigit() || it == '.' || it == ':' }
-                    if ((sch == "http" || sch == "https") && host.isNotEmpty() && host != "vortex.local" && !isIp) {
-                        if (blocked.any { host == it || host.endsWith(".$it") } || dohBlocked(host)) {
-                            return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
-                        }
-                    }
-                }
-                return null
-            }
-
-            override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
-                injectMedia(view)
-                if (view === tabs.getOrNull(cur)) {
-                    urlBar.text = display(url)
-                    updateToolbar(url)
-                }
-            }
-
-            override fun onPageCommitVisible(view: WebView, url: String) {
-                injectMedia(view)
-            }
-
-            override fun onPageFinished(view: WebView, url: String) {
-                inject(view, url)
-                injectMedia(view)
-                if (url.startsWith(homeUrl)) {
-                    val f = forceFeed; forceFeed = false; loadFeed(f)
-                } else if (!incog.contains(view) && shown(url).isNotEmpty() && (url.startsWith("http://") || url.startsWith("https://"))) {
-                    val ttl = view.title
-                    addWebHistory(if (!ttl.isNullOrBlank()) ttl else (hostOf(url) ?: url), url)
-                }
-                if (view === tabs.getOrNull(cur)) {
-                    updateToolbar(url)
-                    if (!url.startsWith(homeUrl)) pull.finish()
-                }
-            }
-        }
-
-        w.webChromeClient = object : WebChromeClient() {
-            override fun onProgressChanged(view: WebView, newProgress: Int) {
-                if (view !== tabs.getOrNull(cur)) return
-                progress.progress = newProgress
-                progress.visibility = if (!inPip && newProgress in 1..99) View.VISIBLE else View.GONE
-            }
-
-            override fun onReceivedIcon(view: WebView, icon: Bitmap?) {
-                if (icon != null) favicons[view] = Pair(hostOf(view.url), icon)
-            }
-
-            override fun onPermissionRequest(request: PermissionRequest) { runOnUiThread { handleWebPermission(request) } }
-            override fun onGeolocationPermissionsShowPrompt(origin: String, callback: GeolocationPermissions.Callback) { handleGeo(origin, callback) }
-
-            override fun onShowFileChooser(webView: WebView, filePathCallback: ValueCallback<Array<Uri>>, fileChooserParams: WebChromeClient.FileChooserParams): Boolean {
-                fileCallback?.onReceiveValue(null)
-                fileCallback = filePathCallback
-                return try {
-                    startActivityForResult(fileChooserParams.createIntent(), 78); true
-                } catch (e: Exception) {
-                    fileCallback = null; toast("File picker not available"); false
-                }
-            }
-
-            private var customView: View? = null
-            private var customViewCallback: CustomViewCallback? = null
-
-            override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
-                if (customView != null) { callback?.onCustomViewHidden(); return }
-                customView = view
-                customViewCallback = callback
-                hideFs = { onHideCustomView() }
-                requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR
-                
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    window.insetsController?.let {
-                        it.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
-                        it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                    }
-                } else {
-                    @Suppress("DEPRECATION")
-                    window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                            or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                            or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                            or View.SYSTEM_UI_FLAG_FULLSCREEN
-                            or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY)
-                }
-
-                val decor = window.decorView as FrameLayout
-                decor.addView(customView, FrameLayout.LayoutParams(mp, mp))
-            }
-
-            override fun onHideCustomView() {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    window.insetsController?.show(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
-                } else {
-                    @Suppress("DEPRECATION")
-                    window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
-                }
-
-                val decor = window.decorView as FrameLayout
-                if (customView != null) decor.removeView(customView)
-                hideFs = null
-                customView = null
-                customViewCallback?.onCustomViewHidden()
-                requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-            }
-        }
-
-        w.setDownloadListener { dlUrl, userAgent, contentDisposition, mime, _ ->
-            startDownload(dlUrl, userAgent, contentDisposition, mime, w.url)
-        }
-
-        tabs.add(w)
-        switchTo(tabs.size - 1)
-        if (url == "home") showHome(w) else w.loadUrl(normalize(url))
-    }
-
-    private fun switchTo(i: Int) {
-        tabs.getOrNull(cur)?.let { captureThumb(it) }
-        container.removeAllViews()
-        cur = i
-        container.addView(tabs[i], FrameLayout.LayoutParams(mp, mp))
-        animateIn(container)
-        urlBar.text = display(tabs[i].url)
-        tabsBtn.count = tabs.size
-        tabsBtn.invalidate()
-        updateToolbar(tabs[i].url)
-        updatePipParams()
-    }
-
-    private fun wipeIfIncognito(w: WebView) {
-        playingTabs.remove(w); videoTabs.remove(w); favicons.remove(w)
-        if (playingTabs.isEmpty()) ui.postDelayed(stopKeep, 45000L)
-        if (incog.remove(w)) {
-            w.clearCache(true); w.clearHistory(); w.clearFormData()
-        }
-    }
-
-    private fun closeTabAt(i: Int) {
-        if (tabs.size == 1) {
-            val old = tabs[0]
-            container.removeAllViews()
-            tabs.clear()
-            wipeIfIncognito(old); thumbs.remove(old); old.destroy()
-            cur = -1; newTab("home")
-            return
-        }
-        val wasCur = (i == cur)
-        val w = tabs[i]
-        if (wasCur) container.removeAllViews()
-        tabs.removeAt(i)
-        wipeIfIncognito(w); thumbs.remove(w); w.destroy()
-        if (wasCur) {
-            switchTo(minOf(i, tabs.size - 1))
-        } else {
-            if (i < cur) cur--
-            tabsBtn.count = tabs.size
-            tabsBtn.invalidate()
-        }
-    }
-}
+        val logoId = resources.getId
