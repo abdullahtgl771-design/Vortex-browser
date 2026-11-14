@@ -199,13 +199,12 @@ class IconView(ctx: Context, private val kind: Int) : View(ctx) {
                 c.drawLine(14f, 5f, 10f, 19f, p)
             }
             21 -> {
-                rect.set(4.5f, 4.5f, 19.5f, 19.5f)
+                rect.set(5f, 5f, 19f, 19f)
                 p.strokeWidth = 2.2f
                 c.drawArc(rect, -30f, 270f, false, p)
-                // Modern sleek arrowhead
-                path.moveTo(17f, 2.5f)
-                path.lineTo(19.5f, 6.5f)
-                path.lineTo(15f, 7.5f)
+                path.moveTo(15.5f, 3.5f)
+                path.lineTo(19f, 6.5f)
+                path.lineTo(15.5f, 10.5f)
                 c.drawPath(path, p)
             }
             22 -> {
