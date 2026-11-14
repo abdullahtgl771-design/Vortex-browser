@@ -2232,4 +2232,299 @@ window.vxFeedErr=function(){
         val head = LinearLayout(this); head.orientation = LinearLayout.HORIZONTAL; head.gravity = Gravity.CENTER_VERTICAL
         head.setPadding(dp(6), 0, dp(6), dp(18))
 
-        val logoId = resources.getId
+        val logoId = resources.getIdentifier("logo", "drawable", packageName)
+        if (logoId != 0) {
+            val iv = ImageView(this); iv.setImageResource(logoId)
+            head.addView(iv, lp(dp(56), dp(56)))
+        }
+
+        val titles = LinearLayout(this); titles.orientation = LinearLayout.VERTICAL; titles.setPadding(dp(12), 0, 0, 0)
+        val nameRow = LinearLayout(this); nameRow.orientation = LinearLayout.HORIZONTAL
+        val n1 = TextView(this); n1.text = "Vortex"; n1.textSize = 21f; n1.setTextColor(cAccent)
+        val n2 = TextView(this); n2.text = " Browser"; n2.textSize = 21f; n2.setTextColor(Color.WHITE)
+        nameRow.addView(n1); nameRow.addView(n2)
+        val subT = TextView(this); subT.text = "Toolbox"; subT.textSize = 13f; subT.setTextColor(cGray)
+        titles.addView(nameRow); titles.addView(subT)
+
+        val close = IconView(this, 7)
+        close.setOnClickListener { closeOverlay() }
+
+        head.addView(titles, lp(0, wc, 1f)); head.addView(close, lp(dp(44), dp(44)))
+        col.addView(head)
+
+        val tools = listOf(
+            Tool(10, "Ad Blocker", "AdGuard DNS: " + onOff(adblock)) { adblock = !adblock; tabs[cur].reload() },
+            Tool(11, "Incognito Mode", "Browse privately") { newTab("home", true) },
+            Tool(13, "Screenshot", "Capture screen") { screenshot() },
+            Tool(14, "Desktop Mode", "Desktop site: " + onOff(desktop)) { toggleDesktop() },
+            Tool(15, "Downloads", "Progress and saved files") { showDownloadsPage() },
+            Tool(16, "Share Page", "Share current page") { sharePage() },
+            Tool(19, "Site Injector", "Custom CSS/JS for this site") { editSiteRule() },
+            Tool(6, "Search Engine", engines[engineIdx].first) { cycleEngine() },
+            Tool(23, "History", "Websites and searches") { showHistory(false) },
+            Tool(24, "Clear History", "Delete browsing data") { showClearDialog() },
+            Tool(21, "Reload", "Reload page") { tabs[cur].reload() },
+            Tool(25, "Help & Feedback", "Message the developer") { showHelp() }
+        )
+
+        val tileViews = ArrayList<View>()
+        for (pair in tools.chunked(2)) {
+            val row = LinearLayout(this); row.orientation = LinearLayout.HORIZONTAL
+            for (tool in pair) {
+                val tv = tile(tool)
+                tileViews.add(tv)
+                row.addView(tv, cellLp())
+            }
+            if (pair.size == 1) row.addView(View(this), cellLp())
+            col.addView(row)
+        }
+
+        val foot = TextView(this)
+        foot.text = "Vortex Tools"; foot.gravity = Gravity.CENTER; foot.textSize = 15f; foot.setTextColor(cAccent)
+        foot.background = glass(28, 0x30, 0x14)
+        val fl = lp(mp, dp(52)); fl.setMargins(dp(6), dp(18), dp(6), 0)
+        col.addView(foot, fl)
+
+        sv.addView(col)
+        openOverlay(sv)
+        staggerIn(tileViews)
+    }
+
+    private fun tile(tool: Tool): View {
+        val card = LinearLayout(this); card.orientation = LinearLayout.VERTICAL
+        card.setPadding(dp(16), dp(14), dp(12), dp(14)); card.background = glass(20)
+
+        val top = LinearLayout(this); top.orientation = LinearLayout.HORIZONTAL; top.gravity = Gravity.CENTER_VERTICAL
+        val ic = IconView(this, tool.kind); ic.tint = cAccent; ic.ratio = 0.6f; ic.isClickable = false
+        val gap = View(this)
+        val ch = IconView(this, 8); ch.tint = cAccent; ch.isClickable = false
+        top.addView(ic, lp(dp(52), dp(52))); top.addView(gap, lp(0, 1, 1f)); top.addView(ch, lp(dp(28), dp(28)))
+
+        val t1 = TextView(this); t1.text = tool.title; t1.textSize = 16f; t1.setTextColor(Color.WHITE)
+        val t2 = TextView(this); t2.text = tool.sub; t2.textSize = 12f; t2.setTextColor(cGray)
+
+        card.addView(top)
+        val tl = lp(mp, wc); tl.topMargin = dp(8)
+        card.addView(t1, tl); card.addView(t2)
+        pressAnim(card)
+        card.setOnClickListener { closeOverlay(); tool.action() }
+        return card
+    }
+
+    private fun captureThumb(w: WebView) {
+        if (w.width <= 0 || w.height <= 0) return
+        try {
+            val sc = 0.4f
+            val bmp = Bitmap.createBitmap((w.width * sc).toInt(), (w.height * sc).toInt(), Bitmap.Config.ARGB_8888)
+            val c = Canvas(bmp); c.scale(sc, sc); w.draw(c)
+            thumbs[w] = bmp
+        } catch (e: Exception) {}
+    }
+
+    private fun showTabsPage() {
+        tabs.getOrNull(cur)?.let { captureThumb(it) }
+        val page = LinearLayout(this); page.orientation = LinearLayout.VERTICAL; page.background = bgGradient()
+
+        val head = LinearLayout(this); head.orientation = LinearLayout.HORIZONTAL; head.gravity = Gravity.CENTER_VERTICAL
+        head.setPadding(dp(18), dp(24), dp(10), dp(10))
+        val title = TextView(this); title.text = "Tabs (" + tabs.size + ")"; title.textSize = 20f; title.setTextColor(Color.WHITE)
+        val add = IconView(this, 9); add.tint = cAccent; add.setOnClickListener { closeOverlay(); newTab("home") }
+        val close = IconView(this, 7); close.setOnClickListener { closeOverlay() }
+        head.addView(title, lp(0, wc, 1f)); head.addView(add, lp(dp(44), dp(44))); head.addView(close, lp(dp(44), dp(44)))
+
+        val sv = ScrollView(this)
+        val col = LinearLayout(this); col.orientation = LinearLayout.VERTICAL; col.setPadding(dp(10), dp(4), dp(10), dp(24))
+        val cards = ArrayList<View>()
+        for (pair in tabs.indices.toList().chunked(2)) {
+            val row = LinearLayout(this); row.orientation = LinearLayout.HORIZONTAL
+            for (i in pair) {
+                val cv = tabCard(i); cards.add(cv); row.addView(cv, cellLp())
+            }
+            if (pair.size == 1) row.addView(View(this), cellLp())
+            col.addView(row)
+        }
+        sv.addView(col)
+        page.addView(head); page.addView(sv, lp(mp, 0, 1f))
+        openOverlay(page)
+        staggerIn(cards)
+    }
+
+    private fun tabCard(i: Int): View {
+        val w = tabs[i]
+        val card = LinearLayout(this); card.orientation = LinearLayout.VERTICAL; card.setPadding(dp(8), dp(8), dp(8), dp(8))
+        val bg = glass(16)
+        if (i == cur) bg.setStroke(dp(2), cAccent)
+        card.background = bg
+
+        val raw = w.title; val host = hostOf(w.url)
+        var name = if (shown(w.url).isEmpty()) "Home" else if (!raw.isNullOrBlank()) raw else (host ?: "Tab")
+        if (incog.contains(w)) name = "Incognito: " + name
+
+        val head = LinearLayout(this); head.orientation = LinearLayout.HORIZONTAL; head.gravity = Gravity.CENTER_VERTICAL
+        val tv = TextView(this); tv.text = name; tv.textSize = 12f; tv.setTextColor(Color.WHITE); tv.maxLines = 1; tv.ellipsize = TextUtils.TruncateAt.END; tv.setPadding(dp(4), 0, 0, 0)
+        val x = IconView(this, 7); x.ratio = 0.5f; x.setOnClickListener { closeTabAt(i); showTabsPage() }
+        head.addView(tv, lp(0, wc, 1f)); head.addView(x, lp(dp(32), dp(32)))
+
+        val iv = ImageView(this); iv.scaleType = ImageView.ScaleType.CENTER_CROP; iv.setBackgroundColor(cBg)
+        val th = thumbs[w]
+        if (th != null) iv.setImageBitmap(th)
+
+        card.addView(head); card.addView(iv, lp(mp, dp(150)))
+        pressAnim(card)
+        card.setOnClickListener { closeOverlay(); switchTo(i) }
+        return card
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun newTab(url: String, incognito: Boolean = false) {
+        val w = WebView(this)
+        w.setBackgroundColor(cBg)
+        val s = w.settings
+        s.javaScriptEnabled = true
+        s.domStorageEnabled = true
+        s.builtInZoomControls = true
+        s.displayZoomControls = false
+        s.loadWithOverviewMode = true
+        s.useWideViewPort = true
+        s.mediaPlaybackRequiresUserGesture = false
+        if (desktop) s.userAgentString = desktopUa
+        if (incognito) {
+            incog.add(w)
+            s.cacheMode = WebSettings.LOAD_NO_CACHE
+            s.saveFormData = false
+        }
+
+        w.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                val u = request.url.toString()
+                if (u.startsWith("vortex://")) { handleVortex(u); return true }
+                return false
+            }
+
+            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+                if (adblock && !request.isForMainFrame) {
+                    val sch = request.url.scheme
+                    val host = request.url.host ?: ""
+                    val isIp = host.all { it.isDigit() || it == '.' || it == ':' }
+                    if ((sch == "http" || sch == "https") && host.isNotEmpty() && host != "vortex.local" && !isIp) {
+                        if (blocked.any { host == it || host.endsWith(".$it") } || dohBlocked(host)) {
+                            return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
+                        }
+                    }
+                }
+                return null
+            }
+
+            override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
+                if (view === tabs.getOrNull(cur)) {
+                    urlBar.text = display(url)
+                    updateToolbar(url)
+                    showToolbar()
+                }
+            }
+
+            override fun onPageFinished(view: WebView, url: String) {
+                inject(view, url)
+                if (url.startsWith(homeUrl)) {
+                    val f = forceFeed; forceFeed = false; loadFeed(f)
+                } else if (!incog.contains(view) && shown(url).isNotEmpty() && (url.startsWith("http://") || url.startsWith("https://"))) {
+                    val ttl = view.title
+                    addWebHistory(if (!ttl.isNullOrBlank()) ttl else (hostOf(url) ?: url), url)
+                }
+                if (view === tabs.getOrNull(cur)) {
+                    updateToolbar(url)
+                    if (!url.startsWith(homeUrl)) pull.finish()
+                }
+            }
+        }
+
+        w.webChromeClient = object : WebChromeClient() {
+            override fun onProgressChanged(view: WebView, newProgress: Int) {
+                if (view !== tabs.getOrNull(cur)) return
+                progress.progress = newProgress
+                progress.visibility = if (newProgress in 1..99) View.VISIBLE else View.GONE
+            }
+
+            override fun onPermissionRequest(request: PermissionRequest) { runOnUiThread { handleWebPermission(request) } }
+            override fun onGeolocationPermissionsShowPrompt(origin: String, callback: GeolocationPermissions.Callback) { handleGeo(origin, callback) }
+
+            override fun onShowFileChooser(webView: WebView, filePathCallback: ValueCallback<Array<Uri>>, fileChooserParams: WebChromeClient.FileChooserParams): Boolean {
+                fileCallback?.onReceiveValue(null)
+                fileCallback = filePathCallback
+                return try {
+                    startActivityForResult(fileChooserParams.createIntent(), 78); true
+                } catch (e: Exception) {
+                    fileCallback = null; toast("File picker not available"); false
+                }
+            }
+
+            override fun onShowCustomView(view: View?, callback: WebChromeClient.CustomViewCallback?) {
+                if (view == null || callback == null) return
+                enterFullscreen(view, callback)
+            }
+
+            override fun onHideCustomView() {
+                exitFullscreen()
+            }
+        }
+
+        w.setDownloadListener { dlUrl, userAgent, contentDisposition, mime, _ ->
+            startDownload(dlUrl, userAgent, contentDisposition, mime)
+        }
+
+        w.setOnScrollChangeListener { v, _, sy, _, osy ->
+            if (v === tabs.getOrNull(cur) && fsView == null) {
+                val dy = sy - osy
+                if (sy < dp(40)) showToolbar()
+                else if (dy > dp(4)) hideToolbar()
+                else if (dy < -dp(4)) showToolbar()
+            }
+        }
+
+        tabs.add(w)
+        switchTo(tabs.size - 1)
+        if (url == "home") showHome(w) else w.loadUrl(normalize(url))
+    }
+
+    private fun switchTo(i: Int) {
+        tabs.getOrNull(cur)?.let { captureThumb(it) }
+        container.removeAllViews()
+        cur = i
+        container.addView(tabs[i], FrameLayout.LayoutParams(mp, mp))
+        animateIn(container)
+        urlBar.text = display(tabs[i].url)
+        tabsBtn.count = tabs.size
+        tabsBtn.invalidate()
+        updateToolbar(tabs[i].url)
+        showToolbar()
+    }
+
+    private fun wipeIfIncognito(w: WebView) {
+        if (incog.remove(w)) {
+            w.clearCache(true); w.clearHistory(); w.clearFormData()
+        }
+    }
+
+    private fun closeTabAt(i: Int) {
+        if (tabs.size == 1) {
+            val old = tabs[0]
+            container.removeAllViews()
+            tabs.clear()
+            wipeIfIncognito(old); thumbs.remove(old); old.destroy()
+            cur = -1; newTab("home")
+            return
+        }
+        val wasCur = (i == cur)
+        val w = tabs[i]
+        if (wasCur) container.removeAllViews()
+        tabs.removeAt(i)
+        wipeIfIncognito(w); thumbs.remove(w); w.destroy()
+        if (wasCur) {
+            switchTo(minOf(i, tabs.size - 1))
+        } else {
+            if (i < cur) cur--
+            tabsBtn.count = tabs.size
+            tabsBtn.invalidate()
+        }
+    }
+}
